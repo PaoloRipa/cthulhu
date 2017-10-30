@@ -9,10 +9,10 @@
 #
 # Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 #
-# Version 1.3 - ONGOING
+# Version 1.3 - Mon Oct 30 15:09:31 CET 2017
 #             Added support for configuration file 
 #             Added action to remove all items from a vault (purge) 
-#             Added action to delete a purged vault TO-TEST
+#             Added action to delete a purged vault 
 #             Added install action, to be execute as first run 
 #             Added support for syslog 
 #
