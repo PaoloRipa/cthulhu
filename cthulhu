@@ -1,0 +1,386 @@
+#!/bin/bash
+
+######################################################
+# Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn #
+######################################################
+###
+# Cthulhu is a front-end tool for mtglacier CLI
+# Paolo Ripamonti - paolo.ripamonti@gmail.com - 2017
+#
+# Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
+#
+# Version 1.3 - ONGOING
+#             Added support for configuration file 
+#             Added action to remove all items from a vault (purge) 
+#             Added action to delete a purged vault TO-TEST
+#             Added install action, to be execute as first run 
+#             Added support for syslog 
+#
+# Version 1.2 - Tue Sep 12 08:33:49 CEST 2017
+#             Added check if the target directory exists
+#             Fixed exit code in check-status to be unique
+#
+# Version 1.1 - Mon Sep  4 11:14:54 CEST 2017
+#             Changed sync action log to record the target vault
+#             Changed check actions log to record the target directory (as no vault is passed to the command)
+#
+# Version 1.0 - Fri Sep  1 14:22:02 CEST 2017
+#
+# Set the following variables to achieve batch usage behavior (e.g. via crontab only)
+#   logActionsToFile=1
+#   quietMode=1
+#   writeToMainLog=1
+#
+# Set the following variable to achieve interactive usage (e.g. for shell calls only)
+#   logActionsToFile=0
+#   quietMode=0
+#   writeToMainLog=0
+#
+# ToDo List
+# 1. Use echo -e and spacing formatting into printMsg output for better layout to STDOUT
+# 2. Add support for CLI flag to run in interactive mode
+# 3. Add support for emailing out results
+# 5. Expand help message to cover main configuration files and refer to mtglacier online doc [PARKED]
+# 6. Add check to confirm mtglacier is installed and that all required dirs and files exists
+# 7. CRITICAL: Add feature to confirm that last execution of a sync was successfull, if not notify via email.
+# 8. LOW: Add functionality to schedule backups via crond
+###
+
+# Setting defaults
+configFile=$HOME/glacier.d/mtAwsGlacier.conf	    # AWS Glacier config file
+concurrencyValue=10									# Number of concurrent backup threads
+leafOptValue=0										# Set to 0 when working with CIFS
+logActionsToFile=1									# Set to 1 to record results of actions to action log file
+quietMode=1											# Set to 1 not to print anything to STDOUT
+deleteRemoved=0										# Set to 1 to instruct sync action to delete removed items
+logDir=$HOME/logs								    # Location of the log directory
+mainLog=${logDir}/glacierBackup.log					# Main log file
+writeToMainLog=1									# Write actions and timestamps to the main log file
+useSystemLog=1										# Set to 1 to log events via syslog
+
+# Sourcing the cthulhu configuration file, to override defaults
+myConfigFile="$HOME/.cthulhu"
+[ -f $myConfigFile ] && source $myConfigFile
+
+# Helper Functions
+function doHelp() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu [action] [vault] [journal]"
+	printMsg "Valid actions are:"
+	printMsg "  sync             Excutes a sync from the local directory to the vault"
+	printMsg "  list-vaults      Lists the existing vaults"
+	printMsg "  check-local-hash Executes the check-local-hash function"
+	printMsg "  create-vault     Creates a new vault"
+	printMsg "  check-status     Generates a stats file, describing the status of the backup"
+	printMsg "  gen-conf         Generates the default configuration file: $myConfigFile"
+	printMsg "  install          First time installation"
+	printMsg "  purge-vault      Remove all items from the target vault"
+	printMsg "  delete-vault     Deletes the target vault (must have been purged)"
+}
+
+function doHelpSync() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu sync [dir] [vault] [journal]"
+	printMsg "  [dir]     Source backup directory, with full path"
+	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "  [journal] Journal file, with full path"
+}
+
+function doHelpCheck() {
+	forceInteractiveMode
+	printMsg "Usage cthulhu check-local-hash [dir] [journal]"
+	printMsg "  [dir]     Source backup directory, with full path"
+	printMsg "  [journal] Journal file, with full path"
+	printMsg ""
+	printMsg "Note: executing this action might take long, depending on the size of the vault"
+}
+
+function doHelpCreate() {
+	forceInteractiveMode
+	printMsg "Usage cthulhu create-vault [vault]"
+	printMsg "  [vault]   Target Glacier Vault"
+}
+
+function doHelpPurge() {
+	forceInteractiveMode
+	printMsg "Usage cthulhu purge-vault [vault] [journal]"
+	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "  [journal] Journal file, with full path"
+}
+
+function doHelpDelete() {
+	forceInteractiveMode
+	printMsg "Usage cthulhu delete-vault [vault]"
+	printMsg "  [vault]   Target Glacier Vault"
+}
+
+function forceInteractiveMode() {
+	quietMode=0
+	writeToMainLog=0
+	useSystemLog=0
+}
+
+function printMsg() {
+	timestamp=`date`
+	# Do I need to write to STDOUT?
+	[ $quietMode == 0 ] && echo $1
+	
+	# Do I need to write to a log?
+	if [ $writeToMainLog == 1 ] 
+	then
+		# Do I need to use logger?
+		if [ $useSystemLog == 1 ]
+		then
+			logger -p user.notice -t cthulhu $1
+		else	
+			echo "[$timestamp] - [cthulhu] - $1" >> $mainLog
+		fi
+	fi
+}
+
+function parseCheckLocalHash() {
+	grepString="^TOTALS|^[0-9]"
+	echo "Backup stats for directory: $3"
+	cat $1 | egrep "$grepString" | grep -v ^$ >> $2 
+}
+
+# Function used to check if the target directory exists
+function checkDirectory() {
+	# All remote mountpoints are under /mnt. Determining if the target is remote.
+	myDirPattern=$(echo $1 | cut -d "/" -f 3)
+	if [ $(cat /etc/fstab | grep $myDirPattern | wc -l) == 1 ]
+	then
+		if [ $(mount | grep $1 | wc -l) == 0 ]
+		then
+			printMsg "ERROR: Target directory $1 appears to be remote and not mounted."
+			exit 6
+		fi
+	fi
+	if [ ! -d $1 ]
+	then
+		printMsg "ERROR: Target directory $1 appears to be local and does not exist."
+		exit 7
+	fi
+}
+
+# Function to create a new config file, with default values
+function writeConfigFile() {
+	rm -rf $myConfigFile
+	echo "# cthulhu default configuration file" >> $myConfigFile
+	echo " " >> $myConfigFile
+	echo "# Location of AWS Glacier configuration file" >> $myConfigFile
+	echo "configFile=/home/oper/glacier.d/mtAwsGlacier.conf" >> $myConfigFile
+	echo "# Number of concurrent backup threads" >> $myConfigFile
+	echo "concurrencyValue=10" >> $myConfigFile
+	echo "# Set to 0 when working with CIFS" >> $myConfigFile
+	echo "leafOptValue=0" >> $myConfigFile
+	echo "# Set to 1 to record results of actions to the action log file"  >> $myConfigFile
+	echo "logActionsToFile=1" >> $myConfigFile
+	echo "# Set to 1 not to print anything to STDOUT"  >> $myConfigFile
+	echo "quietMode=1" >> $myConfigFile
+	echo "# Set to 1 to instruct sync action to delete removed items"  >> $myConfigFile
+	echo "deleteRemoved=0" >> $myConfigFile
+	echo "# Location of the log directory" >> $myConfigFile
+	echo "logDir=$HOME/logs" >> $myConfigFile
+	echo "# Main log file" >> $myConfigFile
+	echo "mainLog=${logDir}/glacierBackup.log" >> $myConfigFile
+	echo "# Set to 1 to write actions and timestamps to the main log file" >> $myConfigFile
+	echo "writeToMainLog=1" >> $myConfigFile
+	echo "# Set to 1 to log events via syslog" >> $myConfigFile
+	echo "useSystemLog=0" >> $myConfigFile	
+}
+
+########
+# MAIN #
+########
+
+# If we have no arguments, then print usage
+if [ $# == 0 ]
+then
+	doHelp
+	exit 1
+fi
+
+# Sync action, to execute backup fo source dir to target vault
+if [ $1 == 'sync' ]
+then
+	# Must be invoked with 4 args: action, directory, vault, journal
+	if [ $# != 4 ] 
+	then
+		doHelpSync
+		exit 2
+	fi
+	# Checking if the target directory is a valid one
+	checkDirectory $2
+	if [ $logActionsToFile == 1 ]
+	then
+		logFile=${logDir}/glacier-$1-$3-`date +%s`.log
+		printMsg "Starting $1 action on vault $3."
+		if [ $deleteRemoved == 1 ]
+		then
+			/usr/local/bin/mtglacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+		else
+			/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+		fi
+		printMsg "Completed. Action log: $logFile"
+	else
+		if [ $deleteRemoved == 1 ]
+		then
+			/usr/local/bin/mtglacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+		else
+			/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+		fi
+	fi
+	exit 0
+fi
+
+# List action, to retrieve a list of available vaults.
+if [ $1 == 'list-vaults' ]
+then
+	# This cannot be run in batch mode, so we always print only to STDOUT
+	forceInteractiveMode
+	/usr/local/bin/mtglacier $1 --config $configFile
+	exit 0
+fi
+
+# Simple check action, to generate a log file showing the status of the archive
+if [ $1 == 'check-local-hash' ]
+then
+	# Must be run with 3 args: action, directory, journal
+	if [ $# != 3 ]
+	then
+		doHelpCheck
+		exit 3
+	fi
+	# Checking if the target directory is a valid one
+	checkDirectory $2
+	if [ $logActionsToFile == 1 ]
+	then
+		logFile=${logDir}/glacier-$1-`date +%s`.log
+		printMsg "Starting $1 action on directory $2."
+		/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
+		printMsg "Completed. Action log: $logFile"
+	else
+		/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3
+	fi
+	exit 0
+fi
+
+# Create action to provision a new vault
+if [ $1 == 'create-vault' ]
+then
+	# This cannot be run in batch mode, so we always print only to STDOUT
+	forceInteractiveMode
+	# Must be run with 2 args: action, vault
+	if [ $# != 2 ]
+	then
+		doHelpCreate
+		exit 4
+	fi
+	/usr/local/bin/mtglacier $1 $2 --config $configFile
+	exit 0
+fi
+
+# Check status action, to generate a stats file showing the overall status of an archive
+if [ $1 == 'check-status' ]
+then
+	# Must be run with 3 args: action, directory, journal
+	if [ $# != 3 ]
+	then
+		doHelpCheck
+		exit 5
+	fi
+	# Checking if the target directory is a valid one
+	checkDirectory $2
+	logFile=${logDir}/glacier-$1-`date +%s`.log
+	printMsg "Starting $1 action on directory $2."
+	/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
+	resultFile=${logDir}/glacier-stats-`date +%s`.log
+	parseCheckLocalHash $logFile $resultFile $2
+	printMsg "Action completed. Stats logged to $resultFile"
+	rm -rf $logFile
+	exit 0
+fi
+
+if [ $1 == 'purge-vault' ]
+then
+	# Must be run with 3 args: action, vault, journal
+	if [ $# != 3 ]
+	then
+		doHelpPurge
+		exit 6
+	fi
+	if [ $logActionsToFile == 1 ]
+	then
+		logFile=${logDir}/glacier-$1-`date +%s`.log
+		printMsg "Starting $1 action on vault $2."
+		/usr/local/bin/mtglacier $1 --vault $2 --config $configFile --journal $3 >$logFile 2>&1
+		printMsg "Completed. Action log: $logFile"
+	else
+		/usr/local/bin/mtglacier $1 --vault $2 --config $configFile --journal $3
+	fi
+	exit 0
+fi
+
+if [ $1 == 'delete-vault' ]
+then
+	# Must be run with 2 args: action, vault
+	if [ $# != 2 ]
+	then
+		doHelpDelete
+		exit 7
+	fi
+	if [ $logActionsToFile == 1 ]
+	then
+		logFile=${logDir}/glacier-$1-`date +%s`.log
+		printMsg "Starting $1 action on vault $2."
+		/usr/local/bin/mtglacier $1 $2 --config $configFile >$logFile 2>&1
+		printMsg "Completed. Action log: $logFile"
+	else
+		/usr/local/bin/mtglacier $1 $2 --config $configFile 
+	fi
+	exit 0
+fi
+
+# Generate configuration file action
+if [ $1 == 'gen-conf' ]
+then
+	forceInteractiveMode
+	printMsg "Generating default configuration file: $myConfigFile"
+	writeConfigFile
+	exit 0
+fi
+
+# First time run
+if [ $1 == 'install' ]
+then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	printMsg "Executing first time run setup."
+	mkdir $logDir
+	writeConfigFile
+	mkdir $HOME/glacier.d
+	echo "Building the AWS Glacier configuration file"
+	echo "Please provide the following details:"
+	echo "- Key: "
+	read installKey
+	echo "- Secret: "
+	read installSecret
+	echo "- region"
+	read installRegion
+	echo "Generating AWS Glacier file"
+	echo "key=$installKey" > $configFile
+	echo "secret=$installSecret" >> $configFile
+	echo "region=$installRegion" >> $configFile
+	echo "protocol=http" >> $configFile
+	printMsg "Done, cthulhu is ready to be used."
+	exit 0
+fi
+
+# Catch all!
+# This cannot be run in batch mode, so we always print only to STDOUT
+forceInteractiveMode
+printMsg "We should never get here!"
+doHelp
+exit 666
+
