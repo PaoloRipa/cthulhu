@@ -31,6 +31,7 @@ Set the following variables to achieve batch usage behavior (e.g. via crontab on
             writeToMainLog=1
 
 Set the following variable to achieve interactive usage (e.g. for shell calls only)
+            
             logActionsToFile=0
             quietMode=0
             writeToMainLog=0
