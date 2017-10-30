@@ -25,13 +25,12 @@ Version 1.1 - Mon Sep  4 11:14:54 CEST 2017
 Version 1.0 - Fri Sep  1 14:22:02 CEST 2017
 
 Set the following variables to achieve batch usage behavior (e.g. via crontab only)
-  
-  logActionsToFile=1
-  quietMode=1
-  writeToMainLog=1
+            
+            logActionsToFile=1
+            quietMode=1
+            writeToMainLog=1
 
 Set the following variable to achieve interactive usage (e.g. for shell calls only)
-  
-  logActionsToFile=0
-  quietMode=0
-  writeToMainLog=0
+            logActionsToFile=0
+            quietMode=0
+            writeToMainLog=0
