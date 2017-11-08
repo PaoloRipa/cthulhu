@@ -5,6 +5,7 @@ Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn
 Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 Version 1.3_1 - Wed Nov  8 08:08:58 CET 2017
+            
             Added a clarification on how writeToMainLog and useSystemLog do interact
 
 Version 1.3 - Mon Oct 30 15:09:31 CET 2017
