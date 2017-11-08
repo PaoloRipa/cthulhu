@@ -55,8 +55,8 @@ quietMode=1											# Set to 1 not to print anything to STDOUT
 deleteRemoved=0										# Set to 1 to instruct sync action to delete removed items
 logDir=$HOME/logs								    # Location of the log directory
 mainLog=${logDir}/glacierBackup.log					# Main log file
-writeToMainLog=1									# Write actions and timestamps to the main log file
-useSystemLog=1										# Set to 1 to log events via syslog
+writeToMainLog=1									# Write actions and timestamps to a log
+useSystemLog=1										# Set to 1 to log actions and timestamps via syslog instead of the main log file
 
 # Sourcing the cthulhu configuration file, to override defaults
 myConfigFile="$HOME/.cthulhu"
