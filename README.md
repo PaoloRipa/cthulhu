@@ -4,6 +4,15 @@ A BaSH front end to mtglacier perl AWS Glacier tool
 Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn 
 Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
+Version 1.4 - Thu Nov 9 10:53:34 CET 2017
+
+        Added support to send out emails
+        Added success check at the end of sync action
+        Added checks against required dirs and files
+        Added function to check last execution of sync action
+        Added configuration variable to disable check at the end of sync action
+        Added function to generate a test email
+
 Version 1.3_1 - Wed Nov  8 08:08:58 CET 2017
             
             Added a clarification on how writeToMainLog and useSystemLog do interact

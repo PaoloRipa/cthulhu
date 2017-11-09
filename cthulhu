@@ -9,6 +9,14 @@
 #
 # Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 #
+# Version 1.4 - Thu Nov  9 10:53:34 CET 2017
+#             Added support to send out emails
+#             Added success check at the end of sync action 
+#             Added checks against required dirs and files
+#             Added function to check last execution of sync action
+#             Added configuration variable to disable check at the end of sync action
+#             Added function to generate a test email
+#
 # Version 1.3_1 - Wed Nov  8 08:08:58 CET 2017
 #             Added a clarification on how writeToMainLog and useSystemLog do interact
 #
@@ -42,24 +50,24 @@
 # ToDo List
 # 1. Use echo -e and spacing formatting into printMsg output for better layout to STDOUT
 # 2. Add support for CLI flag to run in interactive mode
-# 3. Add support for emailing out results
 # 5. Expand help message to cover main configuration files and refer to mtglacier online doc [PARKED]
-# 6. Add check to confirm mtglacier is installed and that all required dirs and files exists
-# 7. CRITICAL: Add feature to confirm that last execution of a sync was successfull, if not notify via email.
 # 8. LOW: Add functionality to schedule backups via crond
 ###
 
 # Setting defaults
-configFile=$HOME/glacier.d/mtAwsGlacier.conf	    # AWS Glacier config file
-concurrencyValue=10									# Number of concurrent backup threads
-leafOptValue=0										# Set to 0 when working with CIFS
-logActionsToFile=1									# Set to 1 to record results of actions to action log file
-quietMode=1											# Set to 1 not to print anything to STDOUT
-deleteRemoved=0										# Set to 1 to instruct sync action to delete removed items
-logDir=$HOME/logs								    # Location of the log directory
-mainLog=${logDir}/glacierBackup.log					# Main log file
-writeToMainLog=1									# Write actions and timestamps to a log
-useSystemLog=1										# Set to 1 to log actions and timestamps via syslog instead of the main log file
+configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
+concurrencyValue=10                           # Number of concurrent backup threads
+leafOptValue=0                                # Set to 0 when working with CIFS
+logActionsToFile=1                            # Set to 1 to record results of actions to action log file
+quietMode=1                                   # Set to 1 not to print anything to STDOUT
+deleteRemoved=0                               # Set to 1 to instruct sync action to delete removed items
+logDir=$HOME/logs                             # Location of the log directory
+mainLog=${logDir}/glacierBackup.log           # Main log file
+writeToMainLog=1                              # Write actions and timestamps to a log
+useSystemLog=1                                # Set to 1 to log actions and timestamps via syslog instead of the main log file
+sendEmails=0                                  # Set to 1 to trigger email notifications
+emailTo=root                                  # Should be overridden in the config file
+checkOnSyncEnd=0                              # Set to 1 to force an exit check upon completion of sync action
 
 # Sourcing the cthulhu configuration file, to override defaults
 myConfigFile="$HOME/.cthulhu"
@@ -79,6 +87,8 @@ function doHelp() {
 	printMsg "  install          First time installation"
 	printMsg "  purge-vault      Remove all items from the target vault"
 	printMsg "  delete-vault     Deletes the target vault (must have been purged)"
+	printMsg "  check-sync       Executes a status check of the last sync action log files"
+	printMsg "  test-mail        Sends out a test email"
 }
 
 function doHelpSync() {
@@ -166,6 +176,12 @@ function checkDirectory() {
 	fi
 }
 
+# Function used to send emails to recipients
+function doSendEmail() {
+	# Requires two args: subject and body
+	echo $2 | mail -s "[cthulhu] - $1" $emailTo
+}
+
 # Function to create a new config file, with default values
 function writeConfigFile() {
 	rm -rf $myConfigFile
@@ -190,7 +206,13 @@ function writeConfigFile() {
 	echo "# Set to 1 to write actions and timestamps to the main log file" >> $myConfigFile
 	echo "writeToMainLog=1" >> $myConfigFile
 	echo "# Set to 1 to log events via syslog" >> $myConfigFile
-	echo "useSystemLog=0" >> $myConfigFile	
+	echo "useSystemLog=0" >> $myConfigFile
+	echo "# Set to 1 to trigger email notifications" >> $myConfigFile
+	echo "sendEmails=0" >> $myConfigFile
+	echo "# Email address that should get the notifications" >> $myConfigFile
+	echo "emailTo=root" >> $myConfigFile
+	echo "# Set to 1 to force an exit check upon completion of sync action" >> $myConfigFile
+	echo "checkOnSyncEnd=0" >> $myConfigFile
 }
 
 ########
@@ -203,6 +225,20 @@ then
 	doHelp
 	exit 1
 fi
+
+# Check if the backend is installed
+which mtglacier >/dev/null
+if [ $? != 0 ]
+then
+	printMsg "ERROR: mtglacier does not seem to be installed on the system. Aborting."
+	exit 8
+else
+	myMtGlacier=$(which mtglacier)
+fi
+
+# Check if all directories and files required are available
+[ ! -f $configFile ] && printMsg "ERROR: $configFile is missing. Aborting." && exit 9
+[ ! -d $logDir ] && printMsg "ERROR: $logDir is missing. Aborting." && exit 10
 
 # Sync action, to execute backup fo source dir to target vault
 if [ $1 == 'sync' ]
@@ -221,17 +257,30 @@ then
 		printMsg "Starting $1 action on vault $3."
 		if [ $deleteRemoved == 1 ]
 		then
-			/usr/local/bin/mtglacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+			$myMtGlacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
 		else
-			/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+			$myMtGlacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
 		fi
 		printMsg "Completed. Action log: $logFile"
 	else
 		if [ $deleteRemoved == 1 ]
 		then
-			/usr/local/bin/mtglacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+			$myMtGlacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
 		else
-			/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+			$myMtGlacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+		fi
+	fi
+
+	# We confirm if this was a good run, or log an error
+	if [ $checkOnSyncEnd == 1 ]
+	then
+		if [ $(tail -1 $logFile | grep "OK DONE" | wc -l) == 0 ]
+		then
+			printMsg "ERROR: Action $1 on vault $3 did not complete with OK DONE. Check $logFile for details."
+			if [ $sendEmails == 1 ]
+			then
+				doSendEmail "ERROR: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) did not complete wiht OK DONE; check $logFile for details."
+			fi
 		fi
 	fi
 	exit 0
@@ -242,7 +291,7 @@ if [ $1 == 'list-vaults' ]
 then
 	# This cannot be run in batch mode, so we always print only to STDOUT
 	forceInteractiveMode
-	/usr/local/bin/mtglacier $1 --config $configFile
+	$myMtGlacier $1 --config $configFile
 	exit 0
 fi
 
@@ -261,10 +310,10 @@ then
 	then
 		logFile=${logDir}/glacier-$1-`date +%s`.log
 		printMsg "Starting $1 action on directory $2."
-		/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
+		$myMtGlacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
 		printMsg "Completed. Action log: $logFile"
 	else
-		/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3
+		$myMtGlacier $1 --config $configFile --dir $2 --journal $3
 	fi
 	exit 0
 fi
@@ -280,7 +329,7 @@ then
 		doHelpCreate
 		exit 4
 	fi
-	/usr/local/bin/mtglacier $1 $2 --config $configFile
+	$myMtGlacier $1 $2 --config $configFile
 	exit 0
 fi
 
@@ -297,7 +346,7 @@ then
 	checkDirectory $2
 	logFile=${logDir}/glacier-$1-`date +%s`.log
 	printMsg "Starting $1 action on directory $2."
-	/usr/local/bin/mtglacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
+	$myMtGlacier $1 --config $configFile --dir $2 --journal $3 >$logFile 2>&1
 	resultFile=${logDir}/glacier-stats-`date +%s`.log
 	parseCheckLocalHash $logFile $resultFile $2
 	printMsg "Action completed. Stats logged to $resultFile"
@@ -317,10 +366,10 @@ then
 	then
 		logFile=${logDir}/glacier-$1-`date +%s`.log
 		printMsg "Starting $1 action on vault $2."
-		/usr/local/bin/mtglacier $1 --vault $2 --config $configFile --journal $3 >$logFile 2>&1
+		$myMtGlacier $1 --vault $2 --config $configFile --journal $3 >$logFile 2>&1
 		printMsg "Completed. Action log: $logFile"
 	else
-		/usr/local/bin/mtglacier $1 --vault $2 --config $configFile --journal $3
+		$myMtGlacier $1 --vault $2 --config $configFile --journal $3
 	fi
 	exit 0
 fi
@@ -337,11 +386,28 @@ then
 	then
 		logFile=${logDir}/glacier-$1-`date +%s`.log
 		printMsg "Starting $1 action on vault $2."
-		/usr/local/bin/mtglacier $1 $2 --config $configFile >$logFile 2>&1
+		$myMtGlacier $1 $2 --config $configFile >$logFile 2>&1
 		printMsg "Completed. Action log: $logFile"
 	else
-		/usr/local/bin/mtglacier $1 $2 --config $configFile 
+		$myMtGlacier $1 $2 --config $configFile 
 	fi
+	exit 0
+fi
+
+# Check exit status of last sync action on each vault
+if [ $1 == 'check-sync' ]
+then
+	cd $logDir
+	for i in `ls glacier-sync-* | cut -d "-" -f 3 | sort -d | uniq`
+	do 
+		if [ $(tail -1 `ls -c1 -rt glacier-sync-$i-* | tail -1` | grep -v "OK DONE" | wc -l) != 0 ]
+		then
+			doSendEmail "WARNING: Failure in sync log for vault $i" "Last line of last sync file for vault $i is not OK DONE. Verify the file contents."
+			printMsg "Last line of last sync file for vault $i is not OK DONE. Verify the file contents."
+		else
+			printMsg "Check-sync action completed on vault $i. No issues found."
+		fi
+	done
 	exit 0
 fi
 
@@ -380,10 +446,19 @@ then
 	exit 0
 fi
 
+# Test email 
+if [ $1 == 'test-mail' ]
+then
+	printMsg "Generating test email."
+	doSendEmail "INFO: Test email from cthulhu" "This is a test message from cthulhu running on $(hostname). Please do not respond."
+	exit 0
+fi
+
 # Catch all!
 # This cannot be run in batch mode, so we always print only to STDOUT
 forceInteractiveMode
 printMsg "We should never get here!"
 doHelp
 exit 666
+
 
