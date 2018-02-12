@@ -9,6 +9,14 @@
 #
 # Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 #
+# Version 1.5 - Mon Feb 12 15:48:25 CET 2018 
+#             Minor "cosmetic" fixes from previous versions
+#             Added function to upgrade the configuration file 
+#             Enhanced install gen-conf to add mtglacier directory to PATH 
+#             Added version number that is displayed by main help function
+#             Fixed a formatting bug in printMsg function, causing special chars to be interpreted
+#             Added a function to schedule sync actions via crontab 
+#
 # Version 1.4 - Thu Nov  9 10:53:34 CET 2017
 #             Added support to send out emails
 #             Added success check at the end of sync action 
@@ -47,12 +55,15 @@
 #   quietMode=0
 #   writeToMainLog=0
 #
-# ToDo List
-# 1. Use echo -e and spacing formatting into printMsg output for better layout to STDOUT
-# 2. Add support for CLI flag to run in interactive mode
-# 5. Expand help message to cover main configuration files and refer to mtglacier online doc [PARKED]
-# 8. LOW: Add functionality to schedule backups via crond
+# ROADMAP (Starred features are scoped for current development version)
+# 1. PARKED: Use echo -e and spacing formatting into printMsg output for better layout to STDOUT
+# 2. PARKED: Add support for CLI flag to run in interactive mode
+# 3. PARKED: Expand help message to cover main configuration files and refer to mtglacier online doc
+# 4. MEDIUM*: Improve email formatting
 ###
+
+# VERSION - DO NOT CHANGE
+cthulhuVersion="1.5"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -76,6 +87,7 @@ myConfigFile="$HOME/.cthulhu"
 # Helper Functions
 function doHelp() {
 	forceInteractiveMode
+	printMsg "cthulhu version $cthulhuVersion"
 	printMsg "Usage: cthulhu [action] [vault] [journal]"
 	printMsg "Valid actions are:"
 	printMsg "  sync             Excutes a sync from the local directory to the vault"
@@ -89,6 +101,8 @@ function doHelp() {
 	printMsg "  delete-vault     Deletes the target vault (must have been purged)"
 	printMsg "  check-sync       Executes a status check of the last sync action log files"
 	printMsg "  test-mail        Sends out a test email"
+	printMsg "  upgrade-conf     Upgrades the configuration file: $myConfigFile"
+	printMsg "  schedule-sync    Adds a crontab entry to schedule a sync action on a targe vault"
 }
 
 function doHelpSync() {
@@ -136,7 +150,7 @@ function forceInteractiveMode() {
 function printMsg() {
 	timestamp=`date`
 	# Do I need to write to STDOUT?
-	[ $quietMode == 0 ] && echo $1
+	[ $quietMode == 0 ] && echo "$1"
 	
 	# Do I need to write to a log?
 	if [ $writeToMainLog == 1 ] 
@@ -213,6 +227,9 @@ function writeConfigFile() {
 	echo "emailTo=root" >> $myConfigFile
 	echo "# Set to 1 to force an exit check upon completion of sync action" >> $myConfigFile
 	echo "checkOnSyncEnd=0" >> $myConfigFile
+	myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
+	echo "# Ensuring mtglacier is in the path when running via cron" >> $myConfigFile
+	echo "PATH=\$PATH:$myPathDir" >> $myConfigFile
 }
 
 ########
@@ -435,7 +452,7 @@ then
 	read installKey
 	echo "- Secret: "
 	read installSecret
-	echo "- region"
+	echo "- Region: "
 	read installRegion
 	echo "Generating AWS Glacier file"
 	echo "key=$installKey" > $configFile
@@ -454,11 +471,101 @@ then
 	exit 0
 fi
 
+# Upgrade configuration file
+if [ $1 == 'upgrade-conf' ]
+then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	# Checking if diff and patch are present on the system
+	isPatchAvailable='yes'
+	which diff >/dev/null
+	[ $? != 0 ] && printMsg "ERROR: diff does not seem to be present on the system. Aborting." && exit 8
+	which patch >/dev/null
+	if [ $? != 0 ]
+	then
+		isPatchAvailable='no'
+		printMsg "WARNING: patch does not seem to be present on the system."
+		printMsg "Configuration differences won't be applicable."
+		printMsg "Hit RETURN to continue or Ctrl+C to abort"
+		read
+	fi
+	# Overriding config file to create the new one
+	myConfigFile="$HOME/.cthulhu.new"
+	# Creating the new file 
+	writeConfigFile
+	# Resetting the config file
+	myConfigFile="$HOME/.cthulhu"
+	myNewConfigFile="$HOME/.cthulhu.new"
+	myPatchFile="$HOME/.cthulhu.patch"
+	myConfigBackup="$HOME/.cthulhu.$(date +%s)"
+	if [ $(diff -u $myConfigFile $myNewConfigFile | wc -l) == 0 ]
+	then
+		printMsg "New and old configuration file are the same. Nothing else to do."
+		rm -rf $myNewConfigFile
+	else
+		myAnswer=n
+		printMsg "The following differences, between old and new configuration files have been detected:"
+		diff -u $myConfigFile $myNewConfigFile 
+		if [ $isPatchAvailable == 'yes']
+		then
+			printMsg "Do you want me to apply the differences? (y/n)"
+			read myAnswer
+			if [ $myAnswer == 'y' ]
+			then
+				printMsg "Generating patch file"
+				diff -u $myConfigFile $myNewConfigFile > $myPatchFile
+				printMsg "Creating configuration backup --> $myConfigBackup"
+				cp -p $myConfigFile $myConfigBackup
+				printMsg "Applying patch"
+				patch < $myPatchFile
+				printMsg "Done."
+			else
+				printMsg "The old configuration has been preserved."
+			fi
+		else
+			printMsg "To apply changes, please, install patch utility and start over."
+		fi
+	fi
+	# Finally cleaning up
+	rm -rf $myNewConfigFile $myPatchFile >/dev/null 2>&1
+	exit 0
+fi
+
+# Schedule sync actions via crond
+if [ $1 == 'schedule-sync' ]
+then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	printMsg "Gathering data to schedule your sync action."
+	printMsg "Please use standard crontab syntax"
+	printMsg "Enter minute of execution:"
+	read MyMinute
+	printMsg "Enter hour of execution:"
+	read MyHour
+	printMsg "Enter day of the month of execution:"
+	read MyDayOfMonth
+	printMsg "Enter month of execution:"
+	read MyMonth
+	printMsg "Enter day of the week of execution:"
+	read MyDayOfWeek
+	printMsg "Enter directory to be sync'd:"
+	read MyDirectory
+	printMsg "Enter target vault:"
+	read MyVault
+	printMsg "Enter full filename of the journal file:"
+	read MyJournal
+	schedDate=$(date)
+	printMsg "I will add the following lines to $USER crontab file"
+	printMsg "# Scheduled by cthulhu on $schedDate"
+	printMsg "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null"
+	(crontab -l 2>/dev/null; echo "# Scheduled by cthulhu on $schedDate") | crontab -
+	(crontab -l 2>/dev/null; echo "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null") | crontab -
+	exit 0
+fi
+
 # Catch all!
 # This cannot be run in batch mode, so we always print only to STDOUT
 forceInteractiveMode
 printMsg "We should never get here!"
 doHelp
 exit 666
-
-

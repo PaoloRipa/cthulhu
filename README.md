@@ -5,14 +5,23 @@ A BaSH front end to mtglacier perl AWS Glacier tool
 
 Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
+Version 1.5 - Mon Feb 12 15:48:25 CET 2018 
+
+             Minor "cosmetic" fixes from previous versions
+             Added function to upgrade the configuration file 
+             Enhanced install gen-conf to add mtglacier directory to PATH 
+             Added version number that is displayed by main help function
+             Fixed a formatting bug in printMsg function, causing special chars to be interpreted
+             Added a function to schedule sync actions via crontab 
+
 Version 1.4 - Thu Nov 9 10:53:34 CET 2017
 
-        Added support to send out emails
-        Added success check at the end of sync action
-        Added checks against required dirs and files
-        Added function to check last execution of sync action
-        Added configuration variable to disable check at the end of sync action
-        Added function to generate a test email
+             Added support to send out emails
+             Added success check at the end of sync action
+             Added checks against required dirs and files
+             Added function to check last execution of sync action
+             Added configuration variable to disable check at the end of sync action
+             Added function to generate a test email
 
 Version 1.3_1 - Wed Nov  8 08:08:58 CET 2017
             
