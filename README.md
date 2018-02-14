@@ -5,6 +5,8 @@ A BaSH front end to mtglacier perl AWS Glacier tool
 
 Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
+## Changelog
+
 Version 1.5 - Mon Feb 12 15:48:25 CET 2018 
 
              Minor "cosmetic" fixes from previous versions
@@ -58,3 +60,8 @@ Set the following variable to achieve interactive usage (e.g. for shell calls on
             logActionsToFile=0
             quietMode=0
             writeToMainLog=0
+
+### Roadmap
+
+[Version 2.0](https://github.com/PaoloRipa/cthulhu/milestone/1)
+[Unscoped](https://github.com/PaoloRipa/cthulhu/milestone/2)
