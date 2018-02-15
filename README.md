@@ -7,6 +7,24 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 ## Changelog
 
+Version 1.6 - Thu Feb 15 11:05:48 CET 2018
+
+            Added function to list scheduled sync actions
+            Forced interactive mode now disables sending emails
+            Fixed check-sync function to send email only if enabled by config
+            Added support for CLI flags
+            Added CLI flag to force interactive mode
+            Added batch/interactive usage configs to help file and to main configuration file
+            checkDirectory action logic has been made filesystem agnostic
+            checkDirectory action now sends email alerts for scheduled batch actions
+            Fixed error message in checkDirectory action
+            checkDirectory action can now log action being aborted
+            Revised and expanded online help
+            Added CLI flag to show help (for compatibility)
+            Improved email generation, now supporting plain text basic formatting (newlines, tabs...)
+            Added fix for issue #1
+            Added fix for issue #15
+
 Version 1.5 - Mon Feb 12 15:48:25 CET 2018 
 
              Minor "cosmetic" fixes from previous versions
