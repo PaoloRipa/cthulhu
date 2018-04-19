@@ -7,6 +7,36 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 ## Changelog
 
+[Version 2.0](https://github.com/PaoloRipa/cthulhu/milestone/1) - Thu Apr 19 19:47:37 CEST 2018
+
+            Issue #2 Add action specific help messages
+            Issue #3 Expand add-schedule action to allow scheduling other types of actions 
+            Issue #4 Rename schedule-sync to add-schedule 
+            Issue #6 Add del-schedule action 
+            Issue #7 Harmonize code
+            Issue #8 Add action to print exit codes reference information 
+            Issue #10 Port fix for Issue #9 
+            Issue #11 Port fix for Issue #1 
+            Issue #12 Add details on archive status to check-status help 
+            Issue #13 Improve check-status action to send reports via email 
+            Issue #14 Formatting issues with emails sent from checkDirectory 
+            Issue #16 Add sync-mtime action
+            Issue #17 Add sync-thash action 
+            Issue #18 Improve show-schedule output message 
+            Issue #19 Add an actions to retrieve files from a vault 
+            Issue #20 restore-prepare: email reminder not sent at planned time blocker 
+            Issue #21 del-schedule garbage output when deleting a check-status action blocker 
+            Issue #22 del-schedule action confirmation message always refers to sync actions 
+            Issue #23 Add CLI flag to show version 
+            Issue #24 Add show-conf action 
+            Issue #25 Implement action auto-completion
+            Issue #26 Naming for sync-mtime and sync-thash log files conflicts with check-sync action
+            Issue #27 Missing -v flag in help page
+            Issue #28 Change default main log name
+            Issue #29 Specify human readable format in list-vaults action
+            Issue #30 Implement journal recovery action(s)
+            Issue #31 Autcompletion not working outside of $HOME
+
 Version 1.6 - Thu Feb 15 11:05:48 CET 2018
 
             Added function to list scheduled sync actions

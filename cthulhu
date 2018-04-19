@@ -1,71 +1,18 @@
 #!/bin/bash
-
+#
 ######################################################
 # Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn #
 ######################################################
-###
-# Cthulhu is a front-end tool for mtglacier CLI
-# Paolo Ripamonti - paolo.ripamonti@gmail.com - 2017
 #
-# Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
-#
-# Version 1.6 - Thu Feb 15 11:05:48 CET 2018
-#             Added function to list scheduled sync actions
-#             Forced interactive mode now disables sending emails
-#             Fixed check-sync function to send email only if enabled by config
-#             Added support for CLI flags
-#             Added CLI flag to force interactive mode
-#             Added batch/interactive usage configs to help file and to main configuration file
-#             checkDirectory action logic has been made filesystem agnostic
-#             checkDirectory action now sends email alerts for scheduled batch actions
-#             Fixed error message in checkDirectory action
-#             checkDirectory action can now log action being aborted
-#             Revised and expanded online help
-#             Added CLI flag to show help (for compatibility)
-#             Improved email generation, now supporting plain text basic formatting (newlines, tabs...)
-#             Added fix for issue #1
-#             Added fix for issue #15
-#
-# Version 1.5 - Mon Feb 12 15:48:25 CET 2018 
-#             Minor "cosmetic" fixes from previous versions
-#             Added function to upgrade the configuration file 
-#             Enhanced install gen-conf to add mtglacier directory to PATH 
-#             Added version number that is displayed by main help function
-#             Fixed a formatting bug in printMsg function, causing special chars to be interpreted
-#             Added a function to schedule sync actions via crontab 
-#
-# Version 1.4 - Thu Nov  9 10:53:34 CET 2017
-#             Added support to send out emails
-#             Added success check at the end of sync action 
-#             Added checks against required dirs and files
-#             Added function to check last execution of sync action
-#             Added configuration variable to disable check at the end of sync action
-#             Added function to generate a test email
-#
-# Version 1.3_1 - Wed Nov  8 08:08:58 CET 2017
-#             Added a clarification on how writeToMainLog and useSystemLog do interact
-#
-# Version 1.3 - Mon Oct 30 15:09:31 CET 2017
-#             Added support for configuration file 
-#             Added action to remove all items from a vault (purge) 
-#             Added action to delete a purged vault 
-#             Added install action, to be execute as first run 
-#             Added support for syslog 
-#
-# Version 1.2 - Tue Sep 12 08:33:49 CEST 2017
-#             Added check if the target directory exists
-#             Fixed exit code in check-status to be unique
-#
-# Version 1.1 - Mon Sep  4 11:14:54 CEST 2017
-#             Changed sync action log to record the target vault
-#             Changed check actions log to record the target directory (as no vault is passed to the command)
-#
-# Version 1.0 - Fri Sep  1 14:22:02 CEST 2017
-#             First GA version
-###
+#######################################################################
+# Cthulhu is a front-end tool for mtglacier CLI                       # 
+# Paolo Ripamonti - paolo.ripamonti@gmail.com - 2017                  #
+# Released under GNU GPLv3 - http://www.gnu.org/licenses/             #
+# Reference to App:MtAws --> https://github.com/vsespb/mt-aws-glacier #
+#######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="1.6"
+cthulhuVersion="2.0"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -75,40 +22,60 @@ logActionsToFile=1                            # Set to 1 to record results of ac
 quietMode=1                                   # Set to 1 not to print anything to STDOUT
 deleteRemoved=0                               # Set to 1 to instruct sync action to delete removed items
 logDir=$HOME/logs                             # Location of the log directory
-mainLog=${logDir}/glacierBackup.log           # Main log file
+mainLog=${logDir}/cthulhu.log                 # Main log file
 writeToMainLog=1                              # Write actions and timestamps to a log
 useSystemLog=1                                # Set to 1 to log actions and timestamps via syslog instead of the main log file
 sendEmails=0                                  # Set to 1 to trigger email notifications
 emailTo=root                                  # Should be overridden in the config file
 checkOnSyncEnd=0                              # Set to 1 to force an exit check upon completion of sync action
+maxRestoreFiles=1000                          # Set the max number of files to be restored by a restore-prepare action
+restoreDelay=5                                # How many hours after a restore-prepare action, files will be ready to download
 
 # Sourcing the cthulhu configuration file, to override defaults
 myConfigFile="$HOME/.cthulhu"
 [ -f $myConfigFile ] && source $myConfigFile
 
+# Initializing run variables
+myUuid=$(cat /proc/sys/kernel/random/uuid)
+skipMainInstall=0
+
 # Helper Functions
 function doHelp() {
 	forceInteractiveMode
 	printMsg "cthulhu version $cthulhuVersion"
-	printMsg "Usage: cthulhu -i [action] [vault] [journal]"
+	printMsg "This software is released under GNU GPLv3: http://www.gnu.org/licenses/"
+	printMsg "Usage: cthulhu -ahiv [action] [vault] [journal]"
 	printMsg "Flags:"
-	printMsg "  -h               Show online help"
-	printMsg "  -i               Force interactive mode"
+	printMsg "  -a               Install only the BaSH autocompletion when executing install action."
+	printMsg "  -h               Show online help."
+	printMsg "  -i               Force interactive mode."
+	printMsg "  -v               Print chtulhu version and exits."
+	printMsg " "
 	printMsg " "
 	printMsg "Valid actions are:"
-	printMsg "  sync             Excutes a sync from the local directory to the vault"
-	printMsg "  list-vaults      Lists the existing vaults"
-	printMsg "  create-vault     Creates a new vault"
+	printMsg "  add-schedule     Adds a crontab entry to schedule a sync action on a targe vault"
 	printMsg "  check-status     Generates a stats file, describing the status of the backup"
-	printMsg "  gen-conf         Generates the default configuration file: $myConfigFile"
-	printMsg "  install          First time installation"
-	printMsg "  purge-vault      Remove all items from the target vault"
-	printMsg "  delete-vault     Deletes the target vault (must have been purged)"
 	printMsg "  check-sync       Executes a status check of the last sync action log files"
+	printMsg "  create-vault     Creates a new vault"
+	printMsg "  del-schedule     Removes scheduled sync actions"
+	printMsg "  delete-vault     Deletes the target vault (must have been purged)"
+	printMsg "  gen-conf         Generates the default configuration file: $myConfigFile"
+	printMsg "  help-action      Displays detailed help page for the target action"
+	printMsg "  install          First time installation"
+	printMsg "  journal-create   Instructs Glacier to rebuild the journal file"
+	printMsg "  journal-download Retrieves a rebuilt journal. This can be executed after at least $restoreDelay hours from the rebuild start"
+	printMsg "  list-codes       Displays exit code reference information"
+	printMsg "  list-vaults      Lists the existing vaults"
+	printMsg "  purge-vault      Remove all items from the target vault"
+	printMsg "  restore-download Actually retrieve the data. This can be executed after at least $restoreDelay hours from the preparation"
+	printMsg "  restore-prepare  Instructs Glacier vault to prepare data for restoration"
+	printMsg "  show-conf        Displays the current configuration, from $myConfigFile"
+	printMsg "  show-schedule    Lists sync actions scheduled via crontab"
+	printMsg "  sync             Executes a sync from the local directory to the vault"
+	printMsg "  sync-mtime       Executes a sync action to fix MODIFICATION TIME MISSMATCH events"
+	printMsg "  sync-thash       Executes a sync action to fix TREEHASH MISSMATCH events"
 	printMsg "  test-mail        Sends out a test email"
 	printMsg "  upgrade-conf     Upgrades the configuration file: $myConfigFile"
-	printMsg "  schedule-sync    Adds a crontab entry to schedule a sync action on a targe vault"
-	printMsg "  show-schedule    Lists sync actions scheduled via crontab"
 	printMsg " "
 	printMsg " "
 	printMsg "How to configure cthulhu for batch or interactive mode"
@@ -133,40 +100,196 @@ function doHelp() {
 	printMsg "5. You can contact the maintainer of https://github.com/PaoloRipa/cthulhu for any information."
 }
 
+function shortHelp() {
+	forceInteractiveMode
+	printMsg "add-schedule check-status check-sync create-vault del-schedule delete-vault gen-conf help-action install journal-create journal-download list-codes list-vaults purge-vault restore-download restore-prepare show-conf show-schedule sync sync-mtime sync-thash test-mail upgrade-conf"
+}
+
 function doHelpSync() {
 	forceInteractiveMode
 	printMsg "Usage: cthulhu sync [dir] [vault] [journal]"
 	printMsg "  [dir]     Source backup directory, with full path"
 	printMsg "  [vault]   Target Glacier Vault"
 	printMsg "  [journal] Journal file, with full path"
+	printMsg "Description: Syncronises the contents of directory [dir] to  vault [vault], using journal file [journal]."
+}
+
+function doHelpSyncMtime() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu sync-mtime [dir] [vault] [journal]"
+	printMsg "  [dir]     Source backup directory, with full path"
+	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "  [journal] Journal file, with full path"
+	printMsg "Description: Forces a sync action on directory [dir] to vault [vault], using journal file [journal], to solve MODIFICATION TIME MISSMATCH events."
+}
+
+function doHelpSyncThash() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu sync-thash [dir] [vault] [journal]"
+	printMsg "  [dir]     Source backup directory, with full path"
+	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "  [journal] Journal file, with full path"
+	printMsg "Description: Forces a sync action on directory [dir] to vault [vault], using journal file [journal], to solve TREEHASH MISSMATCH events."
 }
 
 function doHelpCheck() {
 	forceInteractiveMode
-	printMsg "Usage cthulhu check-status [dir] [journal]"
+	printMsg "Usage: cthulhu check-status [dir] [journal]"
 	printMsg "  [dir]     Source backup directory, with full path"
 	printMsg "  [journal] Journal file, with full path"
+	printMsg "Description: Excute a check of the contents of directory [dir] against the journal file [journal]."
+	printMsg ""
+	printMsg "The following status codes are returned by App::MtAws"
+	printMsg "  ERRORS - Files that triggered an error when sync'ing to the vault (e.g. permission errors, for example)."
+	printMsg "  MISSED - Files skipped by the sync action (e.g. due to filters)."
+	printMsg "  MODIFICATION TIME MISSMATCH - Files whose mtime differs from the one in the journal. To correct those, execute cthulhu sync-mtime action."
+	printMsg "  OK - Files that have been sync'd successfully to the vault."
+	printMsg "  SIZE MISSMATCH - Files whose size differs from the one in the journal."
+	printMsg "  TREEHASH MISSMATCH - Files whose info in the threehash differs from the one in the journal. To correct those, execute cthulhu sync-thash action."
+	printMsg "  ZERO SIZE - Files that have not been sync'd (by AWS Glacier desing), because their size is 0."
 	printMsg ""
 	printMsg "Note: executing this action might take long, depending on the size of the vault"
 }
 
 function doHelpCreate() {
 	forceInteractiveMode
-	printMsg "Usage cthulhu create-vault [vault]"
+	printMsg "Usage: cthulhu create-vault [vault]"
 	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "Description: Creates the vault [vault]."
 }
 
 function doHelpPurge() {
 	forceInteractiveMode
-	printMsg "Usage cthulhu purge-vault [vault] [journal]"
+	printMsg "Usage: cthulhu purge-vault [vault] [journal]"
 	printMsg "  [vault]   Target Glacier Vault"
 	printMsg "  [journal] Journal file, with full path"
+	printMsg "Description: Removes all files from vault [vault], using the journal file [journal]."
 }
 
 function doHelpDelete() {
 	forceInteractiveMode
-	printMsg "Usage cthulhu delete-vault [vault]"
+	printMsg "Usage: cthulhu delete-vault [vault]"
 	printMsg "  [vault]   Target Glacier Vault"
+	printMsg "Description: Deletes the vault [vault]. Note that the vault must have been purged at least 48 hours in advance."
+}
+
+function doHelpRestorePrepare() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu restore-prepare [dir] [vault] [journal]"
+	printMsg "Description: Prepares contents of directory [dir] on vault [vault] for restoration, using journal file [journal]."
+}
+
+function doHelpRestoreDownload() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu restore-complete [dir] [vault] [journal]"
+	printMsg "Description: Downloads missing files into directory [dir] from vault [vault], using journal file [journal]. Note that a restore-prepare action on the same directory must have been executed at least $restoreDelay hours in advance."
+}
+
+function doHelpAddSchedule() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhuVersion add-schedule"
+	printMsg "Description: Schedules a check-status, check-sync or sync action via the executing user's crontab."
+}
+
+function doHelpCheckSync() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu check-sync"
+	printMsg "Description: Checks the exit satus of the last sync action for each vault and send an email if errors are encountered. Execute with -i to obtain the status on STDOUT."
+}
+
+function doHelpDelSchedule() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu del-schedule"
+	printMsg "Description: Opens an interactive menu to remove scheduled actions from the executing user's crontab."
+}
+
+function doHelpGenConf() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu gen-conf"
+	printMsg "Description: Generates cthulhu default configuration file $myConfigFile."
+}
+
+function doHelpInstall() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu install"
+	printMsg "Description: Prepares cthulhu for the first execution. This will require you to provide key, secret and region from your AWS account."
+}
+
+function doHelpListCodes() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu list-codes"
+	printMsg "Description: Displays a short description of all exit codes returned by cthulhu."
+}
+
+function doHelpShowConf() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu show-conf"
+	printMsg "Description: Shows the current configuration file $myConfigFile."
+}
+
+function doHelpShowSchedule() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu show-schedule"
+	printMsg "Description: Shows the list of actions scheduled via the executing user's crontab."
+}
+
+function doHelpTestEmail() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu test-mail"
+	printMsg "Description: Sends a test email based on the configurations in $myConfigFile."
+}
+
+function doHelpUpgradeConf() {
+	forceInteractiveMode
+	printMsg "Usage: chtulhu upgrade-conf"
+	printMsg "Description: Upgrades the current configuration file to the last & best default one and saves a backup of it. Note that customizations might be wiped off and will need to be restored afterwards."
+}
+
+function doHelpListVault() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu list-vaults"
+	printMsg "Description: Shows a list of vaults in the AWS Glacier account."
+}
+
+function doHelpJournalCreate() {
+	forceInteractiveMode
+	printMsg "Usage cthulhu journal-create [vault]"
+	printMsg "Description: Instructs AWS Glacier backend to rebuild the journal file for vault [vault]."
+}
+
+function doHelpJournalDownload() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu journal-download [vault] [journal]"
+	printMsg "Description: Retrieve the journal file from vault [vault] and saves it into file [journal]. Note that a journal-create action on the same vault must have been executed at least $restoreDelay hours in advance."
+}
+
+function doHelpAction() {
+	forceInteractiveMode
+	case $1 in
+		add-schedule ) doHelpAddSchedule ;;
+		check-status ) doHelpCheck ;;
+		check-sync ) doHelpCheckSync ;;
+		create-vault ) doHelpCreate ;;
+		del-schedule ) doHelpDelSchedule ;;
+		delete-vault ) doHelpDelete ;;
+		gen-conf ) doHelpGenConf ;;
+		install ) doHelpInstall ;;
+		journal-create ) doHelpJournalCreate ;;
+		journal-download ) doHelpJournalDownload ;;
+		list-codes ) doHelpListCodes ;;
+		list-vaults ) doHelpListVault ;;
+		purge-vault ) doHelpPurge ;;
+		restore-download ) doHelpRestoreDownload ;;	
+		restore-prepare ) doHelpRestorePrepare ;;
+		show-conf ) doHelpShowConf ;;
+		show-schedule ) doHelpShowSchedule ;;
+		sync ) doHelpSync ;;
+		sync-mtime ) doHelpSyncMtime ;;
+		sync-thash ) doHelpSyncThash ;;
+		test-mail ) doHelpTestEmail ;;
+		upgrade-conf) doHelpUpgradeConf ;;
+		* ) printMsg "Usage: cthulhu help-action [action]" && printMsg "Description: Displays help page for the target [action]" && printMsg "Valid actions: " && shortHelp ;;
+	esac
 }
 
 function forceInteractiveMode() {
@@ -182,14 +305,12 @@ function printMsg() {
 	[ $quietMode == 0 ] && echo "$1"
 	
 	# Do I need to write to a log?
-	if [ $writeToMainLog == 1 ] 
-	then
+	if [[ $writeToMainLog == 1 ]]; then
 		# Do I need to use logger?
-		if [ $useSystemLog == 1 ]
-		then
-			logger -p user.notice -t cthulhu $1
+		if [[ $useSystemLog == 1 ]]; then
+			logger -p user.notice -t cthulhu $myUuid - $1
 		else	
-			echo "[$timestamp] - [cthulhu] - $1" >> $mainLog
+			echo "[$timestamp] - [cthulhu] - $myUuid - $1" >> $mainLog
 		fi
 	fi
 }
@@ -205,15 +326,13 @@ function parseCheckLocalHash() {
 #   1. Target directory to be checked
 #   2. Action that called the function, for reporting purposes
 function checkDirectory() {
-	if [ ! -d $1 ]
-	then
+	if [[ ! -d $1 ]]; then
 		if [[ $2 ]]; then
 			printMsg "ERROR: Target directory $1 does not exist. Aborting action $2."
 		else
 			printMsg "ERROR: Target directory $1 does not exist. Aborting action."
 		fi
-		if [ $sendEmails == 1 ]
-		then
+		if [[ $sendEmails == 1 ]]; then
 			if [[ $2 ]]; then
 				doSendEmail "ERROR: Non existing directory" "ERROR: Target directory $1 does not exist on host $(hostname).\nAborting action $2.\n"
 			else
@@ -267,7 +386,7 @@ function writeConfigFile() {
 	echo "# Location of the log directory" >> $myConfigFile
 	echo "logDir=$HOME/logs" >> $myConfigFile
 	echo "# Main log file" >> $myConfigFile
-	echo "mainLog=${logDir}/glacierBackup.log" >> $myConfigFile
+	echo "mainLog=${logDir}/cthulhu.log" >> $myConfigFile
 	echo "# Set to 1 to write actions and timestamps to the main log file" >> $myConfigFile
 	echo "writeToMainLog=1" >> $myConfigFile
 	echo "# Set to 1 to log events via syslog" >> $myConfigFile
@@ -281,6 +400,11 @@ function writeConfigFile() {
 	myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
 	echo "# Ensuring mtglacier is in the path when running via cron" >> $myConfigFile
 	echo "PATH=\$PATH:$myPathDir" >> $myConfigFile
+	echo "# Set the max number of files to be restored by a restore-prepare action" >> $myConfigFile
+	echo "maxRestoreFiles=1000" >> $myConfigFile
+	echo "# How many hours after a restore-prepare action, files will be ready to download" >> $myConfigFile
+	echo "# It is recommended not to change this value, as it's defined based on AWS Glacier standards" >> $myConfigFile
+	echo "restoreDelay=5" >> $myConfigFile
 }
 
 ########
@@ -288,26 +412,26 @@ function writeConfigFile() {
 ########
 
 # Reading CLI flags
-while getopts "hi" opt; do
+while getopts "ahiv" opt; do
   case $opt in
+   a ) skipMainInstall=1 ;;
    h ) doHelp && exit 0 ;;
    i ) forceInteractiveMode ;;
+   v ) forceInteractiveMode && printMsg "cthulhu version: $cthulhuVersion" && exit 0 ;;
    * ) ;;
   esac
 done
 shift $((OPTIND - 1))
 
 # If we have no arguments, then print usage
-if [ $# == 0 ]
-then
+if [[ $# == 0 ]]; then
 	doHelp
 	exit 1
 fi
 
 # Check if the backend is installed
 which mtglacier >/dev/null
-if [ $? != 0 ]
-then
+if [[ $? != 0 ]]; then
 	printMsg "ERROR: mtglacier does not seem to be installed on the system. Aborting."
 	exit 8
 else
@@ -315,34 +439,35 @@ else
 fi
 
 # Check if all directories and files required are available
-[ ! -f $configFile ] && printMsg "ERROR: $configFile is missing. Aborting." && exit 9
-[ ! -d $logDir ] && printMsg "ERROR: $logDir is missing. Aborting." && exit 10
+if [[ ! -f $configFile ]]; then
+	printMsg "ERROR: $configFile is missing. Aborting." 
+	exit 9
+fi
+if [[ ! -d $logDir ]]; then 
+	printMsg "ERROR: $logDir is missing. Aborting." 
+	exit 10
+fi
 
 # Sync action, to execute backup fo source dir to target vault
-if [ $1 == 'sync' ]
-then
+if [[ $1 == 'sync' ]]; then
 	# Must be invoked with 4 args: action, directory, vault, journal
-	if [ $# != 4 ] 
-	then
+	if [[ $# != 4 ]]; then
 		doHelpSync
 		exit 2
 	fi
 	printMsg "Starting $1 action on vault $3."
 	# Checking if the target directory is a valid one
 	checkDirectory $2 $1
-	if [ $logActionsToFile == 1 ]
-	then
+	if [[ $logActionsToFile == 1 ]]; then
 		logFile=${logDir}/glacier-$1-$3-`date +%s`.log
-		if [ $deleteRemoved == 1 ]
-		then
+		if [[ $deleteRemoved == 1 ]]; then
 			$myMtGlacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
 		else
 			$myMtGlacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
 		fi
 		printMsg "Completed. Action log: $logFile"
 	else
-		if [ $deleteRemoved == 1 ]
-		then
+		if [[ $deleteRemoved == 1 ]]; then
 			$myMtGlacier $1 --delete-removed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
 		else
 			$myMtGlacier $1 --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
@@ -350,13 +475,73 @@ then
 	fi
 
 	# We confirm if this was a good run, or log an error
-	if [ $checkOnSyncEnd == 1 ]
-	then
+	if [[ $checkOnSyncEnd == 1 ]]; then
 		if [ $(tail -1 $logFile | grep "OK DONE" | wc -l) == 0 ]
 		then
 			printMsg "ERROR: Action $1 on vault $3 did not complete with OK DONE. Check $logFile for details."
-			if [ $sendEmails == 1 ]
-			then
+			if [[ $sendEmails == 1 ]]; then
+				doSendEmail "ERROR: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) did not complete with OK DONE.\nPlease, check $logFile for details.\n"
+			fi
+		fi
+	fi
+	exit 0
+fi
+
+# Sync-mtime action, to fix MODIFICATION TIME MISSMATCH events
+if [[ $1 == 'sync-mtime' ]]; then
+	# Must be invoked with 4 args: action, directory, vault, journal
+	if [[ $# != 4 ]]; then
+		doHelpSyncMtime
+		exit 2
+	fi
+	printMsg "Starting $1 action on vault $3."
+	# Checking if the target directory is a valid one
+	checkDirectory $2 $1
+	if [[ $logActionsToFile == 1 ]]; then
+		logFile=${logDir}/glacier-syncmtime-$3-`date +%s`.log
+		$myMtGlacier sync --replace-modified --detect mtime --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+		printMsg "Completed. Action log: $logFile"
+	else
+		$myMtGlacier sync --replace-modified --detect mtime --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+	fi
+
+	# We confirm if this was a good run, or log an error
+	if [[ $checkOnSyncEnd == 1 ]]; then
+		if [ $(tail -1 $logFile | grep "OK DONE" | wc -l) == 0 ]
+		then
+			printMsg "ERROR: Action $1 on vault $3 did not complete with OK DONE. Check $logFile for details."
+			if [[ $sendEmails == 1 ]]; then
+				doSendEmail "ERROR: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) did not complete with OK DONE.\nPlease, check $logFile for details.\n"
+			fi
+		fi
+	fi
+	exit 0
+fi
+
+# Sync-thash action, to fix MODIFICATION TIME MISSMATCH events
+if [[ $1 == 'sync-thash' ]]; then
+	# Must be invoked with 4 args: action, directory, vault, journal
+	if [[ $# != 4 ]]; then
+		doHelpSyncThash
+		exit 2
+	fi
+	printMsg "Starting $1 action on vault $3."
+	# Checking if the target directory is a valid one
+	checkDirectory $2 $1
+	if [[ $logActionsToFile == 1 ]]; then
+		logFile=${logDir}/glacier-syncthash-$3-`date +%s`.log
+		$myMtGlacier sync --replace-modified --detect treehash --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue >$logFile 2>&1
+		printMsg "Completed. Action log: $logFile"
+	else
+		$myMtGlacier sync --replace-modified --detect treehash --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --leaf-optimization $leafOptValue
+	fi
+
+	# We confirm if this was a good run, or log an error
+	if [[ $checkOnSyncEnd == 1 ]]; then
+		if [ $(tail -1 $logFile | grep "OK DONE" | wc -l) == 0 ]
+		then
+			printMsg "ERROR: Action $1 on vault $3 did not complete with OK DONE. Check $logFile for details."
+			if [[ $sendEmails == 1 ]]; then
 				doSendEmail "ERROR: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) did not complete with OK DONE.\nPlease, check $logFile for details.\n"
 			fi
 		fi
@@ -365,22 +550,19 @@ then
 fi
 
 # List action, to retrieve a list of available vaults.
-if [ $1 == 'list-vaults' ]
-then
+if [[ $1 == 'list-vaults' ]]; then
 	# This cannot be run in batch mode, so we always print only to STDOUT
 	forceInteractiveMode
-	$myMtGlacier $1 --config $configFile
+	$myMtGlacier $1 --config $configFile --format for-humans
 	exit 0
 fi
 
 # Create action to provision a new vault
-if [ $1 == 'create-vault' ]
-then
+if [[ $1 == 'create-vault' ]]; then
 	# This cannot be run in batch mode, so we always print only to STDOUT
 	forceInteractiveMode
 	# Must be run with 2 args: action, vault
-	if [ $# != 2 ]
-	then
+	if [[ $# != 2 ]]; then
 		doHelpCreate
 		exit 4
 	fi
@@ -389,11 +571,9 @@ then
 fi
 
 # Check status action, to generate a stats file showing the overall status of an archive
-if [ $1 == 'check-status' ]
-then
+if [[ $1 == 'check-status' ]]; then
 	# Must be run with 3 args: action, directory, journal
-	if [ $# != 3 ]
-	then
+	if [[ $# != 3 ]]; then
 		doHelpCheck
 		exit 5
 	fi
@@ -405,20 +585,27 @@ then
 	resultFile=${logDir}/glacier-stats-`date +%s`.log
 	parseCheckLocalHash $logFile $resultFile $2
 	printMsg "Action completed. Stats logged to $resultFile"
+	if [[ $sendEmails == 1 ]]; then
+		checkEmailBody="Results of $1 action on directory $2:\n$(cat $resultFile)\n"
+		if [[ $(grep MODIFICATION $resultFile | cut -d " " -f 1) != 0 ]]; then
+			checkEmailBody="$checkEmailBody\nAs MODIFICATION TIME MISSMATCH counter is not 0, we recommend excuting sync-mtime action on this directory.\n"
+		fi
+		if [[ $(grep TREEHASH $resultFile | cut -d  " " -f 1) != 0 ]]; then
+			checkEmailBody="$checkEmailBody\nAs TREEHASH MISSMATCH counter is not 0, we recommend executing sync-thash action on this directory.\n"
+		fi
+		doSendEmail "Results of $1 action on directory $2" "$checkEmailBody"
+	fi
 	rm -rf $logFile
 	exit 0
 fi
 
-if [ $1 == 'purge-vault' ]
-then
+if [[ $1 == 'purge-vault' ]]; then
 	# Must be run with 3 args: action, vault, journal
-	if [ $# != 3 ]
-	then
+	if [[ $# != 3 ]]; then
 		doHelpPurge
 		exit 6
 	fi
-	if [ $logActionsToFile == 1 ]
-	then
+	if [[ $logActionsToFile == 1 ]]; then
 		logFile=${logDir}/glacier-$1-`date +%s`.log
 		printMsg "Starting $1 action on vault $2."
 		$myMtGlacier $1 --vault $2 --config $configFile --journal $3 >$logFile 2>&1
@@ -429,16 +616,13 @@ then
 	exit 0
 fi
 
-if [ $1 == 'delete-vault' ]
-then
+if [[ $1 == 'delete-vault' ]]; then
 	# Must be run with 2 args: action, vault
-	if [ $# != 2 ]
-	then
+	if [[ $# != 2 ]]; then
 		doHelpDelete
 		exit 7
 	fi
-	if [ $logActionsToFile == 1 ]
-	then
+	if [[ $logActionsToFile == 1 ]]; then
 		logFile=${logDir}/glacier-$1-`date +%s`.log
 		printMsg "Starting $1 action on vault $2."
 		$myMtGlacier $1 $2 --config $configFile >$logFile 2>&1
@@ -450,15 +634,11 @@ then
 fi
 
 # Check exit status of last sync action on each vault
-if [ $1 == 'check-sync' ]
-then
+if [[ $1 == 'check-sync' ]]; then
 	cd $logDir
-	for i in `ls glacier-sync-* | cut -d "-" -f 3 | sort -d | uniq`
-	do 
-		if [ $(tail -1 `ls -c1 -rt glacier-sync-$i-* | tail -1` | grep -v "OK DONE" | wc -l) != 0 ]
-		then
-			if [ $sendEmails == 1 ]
-			then
+	for i in `ls glacier-sync-* | cut -d "-" -f 3 | sort -d | uniq`; do 
+		if [[ $(tail -1 `ls -c1 -rt glacier-sync-$i-* | tail -1` | grep -v "OK DONE" | wc -l) != 0 ]]; then
+			if [[ $sendEmails == 1 ]]; then
 				doSendEmail "WARNING: Failure in sync log for vault $i" "Last line of last sync file for vault $i is not OK DONE.\nVerify the file contents.\n"
 			fi
 			printMsg "Last line of last sync file for vault $i is not OK DONE. Verify the file contents."
@@ -470,8 +650,7 @@ then
 fi
 
 # Generate configuration file action
-if [ $1 == 'gen-conf' ]
-then
+if [[ $1 == 'gen-conf' ]]; then
 	forceInteractiveMode
 	printMsg "Generating default configuration file: $myConfigFile"
 	writeConfigFile
@@ -479,51 +658,85 @@ then
 fi
 
 # First time run
-if [ $1 == 'install' ]
-then
+if [[ $1 == 'install' ]]; then
 	# This is designed to run only in interactive mode, so we print only to STDOUT
 	forceInteractiveMode
-	printMsg "Executing first time run setup."
-	mkdir $logDir
-	writeConfigFile
-	mkdir $HOME/glacier.d
-	echo "Building the AWS Glacier configuration file"
-	echo "Please provide the following details:"
-	echo "- Key: "
-	read installKey
-	echo "- Secret: "
-	read installSecret
-	echo "- Region: "
-	read installRegion
-	echo "Generating AWS Glacier file"
-	echo "key=$installKey" > $configFile
-	echo "secret=$installSecret" >> $configFile
-	echo "region=$installRegion" >> $configFile
-	echo "protocol=http" >> $configFile
-	printMsg "Done, cthulhu is ready to be used."
+	if [[ $skipMainInstall == 0 ]]; then
+		printMsg "Executing first time run setup."
+		mkdir $logDir
+		writeConfigFile
+		mkdir $HOME/glacier.d
+		echo "Building the AWS Glacier configuration file"
+		echo "Please provide the following details:"
+		echo "- Key: "
+		read installKey
+		echo "- Secret: "
+		read installSecret
+		echo "- Region: "
+		read installRegion
+		echo "Generating AWS Glacier file"
+		echo "key=$installKey" > $configFile
+		echo "secret=$installSecret" >> $configFile
+		echo "region=$installRegion" >> $configFile
+		echo "protocol=http" >> $configFile
+	fi
+	printMsg "Creating BaSH autocompletion file"
+	cthulhuAutocompletionFile=$HOME/.cthulhu.autcomplete.sh
+	rm -rf $cthulhuAutocompletionFile >/dev/null 2>&1
+	echo "_cthulhu()" >> $cthulhuAutocompletionFile
+	echo "{" >> $cthulhuAutocompletionFile
+	echo "  local cur acts" >> $cthulhuAutocompletionFile
+	echo "  COMPREPLY=()" >> $cthulhuAutocompletionFile
+	echo "  cur=\"\${COMP_WORDS[COMP_CWORD]}\"" >> $cthulhuAutocompletionFile
+  	echo "  prev=\"\${COMP_WORDS[COMP_CWORD-1]}\"" >> $cthulhuAutocompletionFile
+	echo "  acts=\"$($0 short-help)\"" >> $cthulhuAutocompletionFile
+	echo "  if [[ \${prev} == 'help-action' ]]; then" >> $cthulhuAutocompletionFile
+	echo "     COMPREPLY=( \$(compgen -W \"\${acts}\" -- \${cur}) )" >> $cthulhuAutocompletionFile
+	echo "     return 0" >> $cthulhuAutocompletionFile
+	echo "  fi" >> $cthulhuAutocompletionFile
+	echo "  if [[ \${prev} != 'cthulhu' ]]; then " >> $cthulhuAutocompletionFile
+    echo "    COMPREPLY=( \$(compgen -f \${cur} ) )" >> $cthulhuAutocompletionFile
+    echo "    return 0" >> $cthulhuAutocompletionFile
+  	echo "  fi" >> $cthulhuAutocompletionFile
+	echo "  COMPREPLY=( \$(compgen -W \"\${acts}\" -- \${cur}) )" >> $cthulhuAutocompletionFile
+	echo "  return 0" >> $cthulhuAutocompletionFile
+	echo "}" >> $cthulhuAutocompletionFile
+	echo "complete -F _cthulhu cthulhu" >> $cthulhuAutocompletionFile
+	printMsg "Adding autocompletion to .bashrc"
+	echo "" >> $HOME/.bashrc
+	if [[ $(grep "source $cthulhuAutocompletionFile" $HOME/.bashrc | wc -l) == 0 ]]; then
+		echo "# Added by cthulhu on $(date)" >> $HOME/.bashrc
+		echo "source $cthulhuAutocompletionFile" >> $HOME/.bashrc
+	fi
+	source $cthulhuAutocompletionFile
+	if [[ $skipMainInstall == 0 ]]; then
+		printMsg "Done, cthulhu is ready to be used."
+	else
+		printMsg "Done, autocompletion installed."
+	fi
 	exit 0
 fi
 
 # Test email 
-if [ $1 == 'test-mail' ]
-then
+if [[ $1 == 'test-mail' ]]; then
 	printMsg "Generating test email."
 	doSendEmail "INFO: Test email from cthulhu" "This is a test message from cthulhu running on $(hostname).\nPlease do not respond.\n"
 	exit 0
 fi
 
 # Upgrade configuration file
-if [ $1 == 'upgrade-conf' ]
-then
+if [[ $1 == 'upgrade-conf' ]]; then
 	# This is designed to run only in interactive mode, so we print only to STDOUT
 	forceInteractiveMode
 	# Checking if diff and patch are present on the system
 	isPatchAvailable='yes'
 	which diff >/dev/null
-	[ $? != 0 ] && printMsg "ERROR: diff does not seem to be present on the system. Aborting." && exit 8
+	if [[ $? != 0 ]]; then 
+		printMsg "ERROR: diff does not seem to be present on the system. Aborting." 
+		exit 8
+	fi
 	which patch >/dev/null
-	if [ $? != 0 ]
-	then
+	if [[ $? != 0 ]]; then
 		isPatchAvailable='no'
 		printMsg "WARNING: patch does not seem to be present on the system."
 		printMsg "Configuration differences won't be applicable."
@@ -538,21 +751,18 @@ then
 	myConfigFile="$HOME/.cthulhu"
 	myNewConfigFile="$HOME/.cthulhu.new"
 	myPatchFile="$HOME/.cthulhu.patch"
-	myConfigBackup="$HOME/.cthulhu.$(date +%s)"
-	if [ $(diff -u $myConfigFile $myNewConfigFile | wc -l) == 0 ]
-	then
+	myConfigBackup="$HOME/.cthulhu.$(date +%s)-$cthulhuVersion"
+	if [[ $(diff -u $myConfigFile $myNewConfigFile | wc -l) == 0 ]]; then
 		printMsg "New and old configuration file are the same. Nothing else to do."
 		rm -rf $myNewConfigFile
 	else
 		myAnswer=n
 		printMsg "The following differences, between old and new configuration files have been detected:"
 		diff -u $myConfigFile $myNewConfigFile 
-		if [ $isPatchAvailable == 'yes']
-		then
+		if [[ $isPatchAvailable == 'yes' ]]; then
 			printMsg "Do you want me to apply the differences? (y/n)"
 			read myAnswer
-			if [ $myAnswer == 'y' ]
-			then
+			if [[ $myAnswer == 'y' ]]; then
 				printMsg "Generating patch file"
 				diff -u $myConfigFile $myNewConfigFile > $myPatchFile
 				printMsg "Creating configuration backup --> $myConfigBackup"
@@ -572,43 +782,305 @@ then
 	exit 0
 fi
 
-# Schedule sync actions via crond
-if [ $1 == 'schedule-sync' ]
-then
+# Schedule actions via crond
+if [[ $1 == 'schedule-sync' || $1 == 'add-schedule' ]]; then
 	# This is designed to run only in interactive mode, so we print only to STDOUT
 	forceInteractiveMode
-	printMsg "Gathering data to schedule your sync action."
-	printMsg "Please use standard crontab syntax"
-	printMsg "Enter minute of execution:"
-	read MyMinute
-	printMsg "Enter hour of execution:"
-	read MyHour
-	printMsg "Enter day of the month of execution:"
-	read MyDayOfMonth
-	printMsg "Enter month of execution:"
-	read MyMonth
-	printMsg "Enter day of the week of execution:"
-	read MyDayOfWeek
-	printMsg "Enter directory to be sync'd:"
-	read MyDirectory
-	printMsg "Enter target vault:"
-	read MyVault
-	printMsg "Enter full filename of the journal file:"
-	read MyJournal
-	schedDate=$(date)
-	printMsg "I will add the following lines to $USER crontab file"
-	printMsg "# Scheduled by cthulhu on $schedDate"
-	printMsg "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null"
-	(crontab -l 2>/dev/null; echo -e "# Scheduled by cthulhu on $schedDate\n$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null") | crontab -
+	printMsg "It is recommended to leave a gap between consecutive scheduled actions, to avoid overlaps which can result in system and network overload."
+	printMsg "Use cthulhu show-schedule to list the currently scheduled actions."
+	printMsg "Enter to continue or Ctrl+c to abort"
+	read
+	printMsg "What type of action you want to schedule?"
+	printMsg " 1. check-status"
+	printMsg " 2. check-sync"
+	printMsg " 3. sync"
+	printMsg "Select one option."
+	read actionToSchedule
+	if [[ $actionToSchedule == 1 ]]; then
+		printMsg "Gathering data to schedule your sync action."
+		printMsg "Please use standard crontab syntax, see man crontab for additional info."
+		printMsg "Enter minute of execution:"
+		read MyMinute
+		printMsg "Enter hour of execution:"
+		read MyHour
+		printMsg "Enter day of the month of execution:"
+		read MyDayOfMonth
+		printMsg "Enter month of execution:"
+		read MyMonth
+		printMsg "Enter day of the week of execution:"
+		read MyDayOfWeek
+		printMsg "Enter directory to be checked:"
+		read MyDirectory
+		printMsg "Enter full filename of the journal file:"
+		read MyJournal
+		schedDate=$(date)
+		printMsg "I will add the following lines to $USER crontab file"
+		printMsg "# Scheduled by cthulhu on $schedDate"
+		printMsg "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) check-status $MyDirectory $MyJournal > /dev/null"
+		(crontab -l 2>/dev/null; echo -e "# Scheduled by cthulhu on $schedDate\n$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) check-status $MyDirectory $MyJournal > /dev/null") | crontab -
+		exit 0
+	fi
+	if [[ $actionToSchedule == 2 ]]; then
+		printMsg "Gathering data to schedule your sync action."
+		printMsg "Please use standard crontab syntax, see man crontab for additional info."
+		printMsg "Enter minute of execution:"
+		read MyMinute
+		printMsg "Enter hour of execution:"
+		read MyHour
+		printMsg "Enter day of the month of execution:"
+		read MyDayOfMonth
+		printMsg "Enter month of execution:"
+		read MyMonth
+		printMsg "Enter day of the week of execution:"
+		read MyDayOfWeek
+		schedDate=$(date)
+		printMsg "I will add the following lines to $USER crontab file"
+		printMsg "# Scheduled by cthulhu on $schedDate"
+		printMsg "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) check-sync > /dev/null"
+		(crontab -l 2>/dev/null; echo -e "# Scheduled by cthulhu on $schedDate\n$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) check-sync > /dev/null") | crontab -
+		exit 0
+	fi
+	if [[ $actionToSchedule == 3 ]]; then
+		printMsg "Gathering data to schedule your sync action."
+		printMsg "Please use standard crontab syntax, see man crontab for additional info."
+		printMsg "Enter minute of execution:"
+		read MyMinute
+		printMsg "Enter hour of execution:"
+		read MyHour
+		printMsg "Enter day of the month of execution:"
+		read MyDayOfMonth
+		printMsg "Enter month of execution:"
+		read MyMonth
+		printMsg "Enter day of the week of execution:"
+		read MyDayOfWeek
+		printMsg "Enter directory to be sync'd:"
+		read MyDirectory
+		printMsg "Enter target vault:"
+		read MyVault
+		printMsg "Enter full filename of the journal file:"
+		read MyJournal
+		schedDate=$(date)
+		printMsg "I will add the following lines to $USER crontab file"
+		printMsg "# Scheduled by cthulhu on $schedDate"
+		printMsg "$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null"
+		(crontab -l 2>/dev/null; echo -e "# Scheduled by cthulhu on $schedDate\n$MyMinute $MyHour $MyDayOfMonth $MyMonth $MyDayOfWeek $(which cthulhu) sync $MyDirectory $MyVault $MyJournal > /dev/null") | crontab -
+		exit 0
+	fi
+	# Catch-all
+	printMsg "Invalid option number $actionToSchedule. Aborting."
+	exit 12
+fi
+
+# Show scheduled actions
+if [[ $1 == 'show-schedule' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	if [[ $(crontab -l | grep cthulhu | wc -l) == 0 ]]; then
+		printMsg "No cthulhu actions are currently scheduled on this sytem."
+	else
+		printMsg "The following actions are currently scheduled in crontab:"
+		crontab -l | grep -B1 cthulhu 	
+	fi
 	exit 0
 fi
 
-if [ $1 == 'show-schedule' ]
-then
+# Delete scheduled actions
+if [[ $1 == 'del-schedule' ]]; then
 	# This is designed to run only in interactive mode, so we print only to STDOUT
 	forceInteractiveMode
-	printMsg "The following sync actions are currently scheduled in crontab:"
-	crontab -l | grep cthulhu | grep sync	
+	myLineNumber=1
+	tmpCronOut=/tmp/cthulhu.cronout
+	tmpCronOutNumbered=/tmp/cthulhu.numbered
+	# Cleaning old leftovers, if any
+	rm -rf $tmpCronOut $tmpCronOutNumbered >/dev/null 2>&1
+	# cthulhu manages three scheduled actions: sync, check-status and check-sync
+	printMsg "The following actions are currently scheduled in crontab:"
+	crontab -l | grep cthulhu | egrep "sync|check-status|check-sync" > $tmpCronOut
+	while IFS= read -r thisLine; do
+	  echo "$myLineNumber. $thisLine" >> $tmpCronOutNumbered
+	  myLineNumber=$(($myLineNumber+1)) 
+	done < "$tmpCronOut"
+	cat $tmpCronOutNumbered
+	printMsg "Please, select the scheduled action to be remoevd:"
+	read myLineNumberToRemove
+	myLineToRemove=$(cat $tmpCronOutNumbered | grep "^${myLineNumberToRemove}. " | cut -d " " -f 2-)
+	printMsg "The following action(s) will be removed:"
+	myCommentToRemove=$(crontab -l 2>/dev/null | egrep -B1 "^$(echo $myLineToRemove | cut -d " " -f 1,2)" | head -1)
+	printMsg "$myCommentToRemove"
+	printMsg "$myLineToRemove"
+	printMsg "Enter to confirm or Ctrl+c to abort"
+	read
+	crontab -l 2>/dev/null | egrep -v "$myCommentToRemove" | crontab -
+	crontab -l 2>/dev/null | egrep -v "^$(echo $myLineToRemove | cut -d " " -f 1,2)" | crontab - 
+	# Cleaning temporary files
+	rm -rf $tmpCronOut $tmpCronOutNumbered >/dev/null 2>&1
+	exit 0
+fi
+
+if [[ $1 == 'list-codes' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	printMsg "The folloing exit codes are used by cthulhu:"
+	printMsg "   0 - Sucessful execution."
+	printMsg "   1 - Mandatory parameter(s) missing. Execution aborted."
+	printMsg "   2 - Missing sync action parameter(s). Execution aborted."
+	printMsg "   3 - Missing restore-prepare action parameter(s). Execution aborted."
+	printMsg "   4 - Missing create-vault action parameter(s). Execution aborted."
+	printMsg "   5 - Missing check-status action parameter(s). Execution aborted."
+	printMsg "   6 - Missing purge-vault action parameter(s). Execution aborted."
+	printMsg "   7 - Missing target directory. Execution aborted."
+	printMsg "   8 - diff tool not installed on the system. Execution aborted."
+	printMsg "   9 - Missing App:MtAws configuration file. Execution aborted."
+	printMsg "  10 - Missing log directory. Execution aborted."
+	printMsg "  11 - Missing restore-complete action parameter(s). Execution aborted."
+	printMsg "  12 - Invalid action selected during add-schedule. Execution aborted."
+	printMsg "  13 - Missing configuration file detected when executing show-conf action."
+	printMsg "  14 - Missing journal-create action parameter(s). Execution aborted."
+	printMsg "  15 - Missing journal-download action parameter(s). Execution aborted."
+	printMsg " 666 - Unexpected exit code. It should never be reported. If you encounter it, open a bug on cthulhu GitHub project."
+	exit 0
+fi
+
+if [[ $1 == 'restore-prepare' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	# Must be invoked with 4 args: action, directory, vault, journal
+	if [[ $# != 4 ]]; then
+		doHelpRestorePrepare
+		exit 3
+	fi
+	printMsg "Starting $1 action on vault $3."
+	printMsg "I will restore up to $maxRestoreFiles files from $3 vault. Do you want to override this limit? (y/n)"
+	read overrideMaxFiles
+	if [[ $overrideMaxFiles == 'y' ]]; then
+		printMsg "What limit shall I use?"
+		read maxRestoreFiles
+	fi
+	# Checking if the target directory is a valid one
+	checkDirectory $2 $1
+	$myMtGlacier restore --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue --max-number-of-files $maxRestoreFiles
+	if [[ $? == 0 ]]; then
+		printMsg "Restoration process was started. To complete the restoration, execute cthulhu restore-download $2 $3 $4 after $(date -d "now + $restoreDelay hours")"
+		printMsg "Do you want me to send an email reminder to $emailTo when files are supposed to be available for downloading? (y/n)"
+		read sendReminder
+		if [[ $sendReminder == 'y' ]]; then
+			# Using at to schedule the email generation
+			which at >/dev/null 2>&1
+			if [[ $? == 1 ]]; then
+				printMsg "ERROR: at daemon is not available on the system. I cannot schedule the reminder."
+				exit 0
+			fi
+			# mailMessage="echo -e "Hello,\nPlease execute cthulhu restore-download $2 $3 $4\n\nYours faithfully\n-- \nChthulu@$(hostname)" | mail -s "[cthulhu] - Data availale for retrieval" $emailTo"
+			# echo "$mailMessage" | at now + $restoreDelay hours
+			reminderScript=/tmp/cthulhurReminder-$1-$(date +%s).sh
+			touch $reminderScript
+			chmod +x $reminderScript
+			echo "#!/bin/bash" > $reminderScript
+			echo "echo -e \"Hello,\nPlease execute cthulhu restore-download $2 $3 $4\n\nYours faithfully\n-- \nChthulu@$(hostname)\" | mail -s \"[cthulhu] - Data available for retrieval\" $emailTo" >> $reminderScript
+			echo "rm -rf $reminderScript" >> $reminderScript
+			echo "exit 0" >> $reminderScript
+			echo "" >> $reminderScript
+			echo $reminderScript | at now + $restoreDelay hours
+		fi
+	fi
+	printMsg "Completed."
+	exit 0
+fi
+
+if [[ $1 == 'restore-download' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	# Must be invoked with 4 args: action, directory, vault, journal
+	if [[ $# != 4 ]]; then
+		doHelpRestoreDownload
+		exit 11
+	fi
+	printMsg "Starting $1 action on vault $3."
+	# Checking if the target directory is a valid one
+	checkDirectory $2 $1
+	$myMtGlacier restore-completed --config $configFile --dir $2 --vault $3 --journal $4 --concurrency $concurrencyValue
+	printMsg "Completed."
+	exit 0
+fi
+
+if [[ $1 == 'show-conf' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	if [[ -f $myConfigFile ]]; then
+		printMsg "This is the configuration currently used by cthulhu:"
+		cat $myConfigFile
+		exit 0
+	else
+		printMsg "ERROR: I cannot find $myConfigFile. Aborting."
+		printMsg "You can regenerate the default configuration file with the command:"
+		printMsg "  cthulhu gen-conf"
+		exit 13	
+	fi
+fi
+
+if [[ $1 == 'journal-create' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	# Must be invoked with 2 args: action, vault
+	if [[ $# != 2 ]]; then
+		doHelpJournalCreate
+		exit 14
+	fi
+	printMsg "Starting action $1 on vault $2."
+	$myMtGlacier retrieve-inventory --config $configFile --vault $2
+	if [[ $? == 0 ]]; then
+		printMsg "Journal creation process was started. To complete the process, execute cthulhu journal-download $2 [journal] after $(date -d "now + $restoreDelay hours")"
+		printMsg "Do you want me to send an email reminder to $emailTo when journal is supposed to be available for downloading? (y/n)"
+		read sendReminder
+		if [[ $sendReminder == 'y' ]]; then
+			# Using at to schedule the email generation
+			which at >/dev/null 2>&1
+			if [[ $? == 1 ]]; then
+				printMsg "ERROR: at daemon is not available on the system. I cannot schedule the reminder."
+				exit 0
+			fi
+			reminderScript=/tmp/cthulhuJournalReminder-$1-$(date +%s).sh
+			touch $reminderScript
+			chmod +x $reminderScript
+			echo "#!/bin/bash" > $reminderScript
+			echo "echo -e \"Hello,\nPlease execute cthulhu journal-download $2 [journal], where [journal] is the filename of the file where you want to save the journal to.\n\nYours faithfully\n-- \nChthulu@$(hostname)\" | mail -s \"[cthulhu] - Journal available for download\" $emailTo" >> $reminderScript
+			echo "rm -rf $reminderScript" >> $reminderScript
+			echo "exit 0" >> $reminderScript
+			echo "" >> $reminderScript
+			echo $reminderScript | at now + $restoreDelay hours
+		fi
+	fi
+	printMsg "Completed."
+	exit 0
+fi
+
+if [[ $1 == 'journal-download' ]]; then
+	# This is designed to run only in interactive mode, so we print only to STDOUT
+	forceInteractiveMode
+	# Must be invoked with 3 args: action, vault, journal
+	if [[ $# != 3 ]]; then
+		doHelpJournalDownload
+		exit 15
+	fi
+	printMsg "Starting action $1 on vault $2."
+	$myMtGlacier download-inventory --config $configFile --vault $2 --new-journal $3
+	printMsg "Completed."
+	exit 0
+fi
+
+# Internal action, used for autocompletion only
+if [[ $1 == 'short-help' ]]; then
+	shortHelp
+	exit 0
+fi
+
+# Catch calls for help
+if [[ $1 == 'help' ]]; then
+	doHelp
+	exit 0
+fi
+if [[ $1 == 'help-action' ]]; then
+	doHelpAction $2
 	exit 0
 fi
 
