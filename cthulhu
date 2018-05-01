@@ -689,7 +689,7 @@ if [[ $1 == 'install' ]]; then
 	echo "  COMPREPLY=()" >> $cthulhuAutocompletionFile
 	echo "  cur=\"\${COMP_WORDS[COMP_CWORD]}\"" >> $cthulhuAutocompletionFile
   	echo "  prev=\"\${COMP_WORDS[COMP_CWORD-1]}\"" >> $cthulhuAutocompletionFile
-	echo "  acts=\"$($0 short-help)\"" >> $cthulhuAutocompletionFile
+	echo "  acts=\"\$(cthulhu short-help)\"" >> $cthulhuAutocompletionFile
 	echo "  if [[ \${prev} == 'help-action' ]]; then" >> $cthulhuAutocompletionFile
 	echo "     COMPREPLY=( \$(compgen -W \"\${acts}\" -- \${cur}) )" >> $cthulhuAutocompletionFile
 	echo "     return 0" >> $cthulhuAutocompletionFile
