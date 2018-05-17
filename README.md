@@ -7,6 +7,10 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 ## Changelog
 
+Version 2.0-1
+
+            Issue #38 [Backport] - Autocomplete action relies on static list of supported actions
+
 [Version 2.0](https://github.com/PaoloRipa/cthulhu/milestone/1) - Thu Apr 19 19:47:37 CEST 2018
 
             Issue #2 Add action specific help messages
