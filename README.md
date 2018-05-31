@@ -7,7 +7,7 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 ## Changelog
 
-Version 2.0-1
+Version 2.0-1 - Tue May  1 23:35:12 CEST 2018
 
             Issue #38 [Backport] - Autocomplete action relies on static list of supported actions
 
