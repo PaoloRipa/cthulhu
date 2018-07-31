@@ -12,7 +12,7 @@
 #######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="2.0-1"
+cthulhuVersion="2.0-2"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -636,7 +636,7 @@ fi
 # Check exit status of last sync action on each vault
 if [[ $1 == 'check-sync' ]]; then
 	cd $logDir
-	for i in `ls glacier-sync-* | cut -d "-" -f 3 | sort -d | uniq`; do 
+	for i in `ls glacier-sync-* | egrep -v "\-mtime\-" | egrep -v "\-thash\-" | cut -d "-" -f 3 | sort -d | uniq`; do 
 		if [[ $(tail -1 `ls -c1 -rt glacier-sync-$i-* | tail -1` | grep -v "OK DONE" | wc -l) != 0 ]]; then
 			if [[ $sendEmails == 1 ]]; then
 				doSendEmail "WARNING: Failure in sync log for vault $i" "Last line of last sync file for vault $i is not OK DONE.\nVerify the file contents.\n"

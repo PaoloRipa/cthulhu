@@ -1,3 +1,6 @@
+Version 2.0-1 - Tue Jul 31 23:30:46 CEST 2018
+            Issue #51 [Backport] - check-sync action shall check only logs of sync action
+
 Version 2.0-1 - Tue May  1 23:35:12 CEST 2018
 
             Issue #38 [Backport] - Autocomplete action relies on static list of supported actions
