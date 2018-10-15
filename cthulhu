@@ -12,7 +12,7 @@
 #######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="2.1"
+cthulhuVersion="2.2-DEV"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
