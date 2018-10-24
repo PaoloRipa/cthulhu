@@ -704,6 +704,9 @@ if [[ $1 == 'purge-vault' ]]; then
 	else
 		$myMtGlacier $1 --vault $2 --config $configFile --journal $3
 	fi
+	if [[ $compressLogFiles == 1 ]]; then
+		gzip $logFile
+	fi
 	rm -rf $myLockFile
 	exit 0
 fi
@@ -721,6 +724,9 @@ if [[ $1 == 'delete-vault' ]]; then
 		printMsg "Completed. Action log: $logFile"
 	else
 		$myMtGlacier $1 $2 --config $configFile 
+	fi
+	if [[ $compressLogFiles == 1 ]]; then
+		gzip $logFile
 	fi
 	exit 0
 fi
