@@ -724,7 +724,12 @@ if [[ $1 == 'check-sync' ]]; then
 	cd $logDir
 	for i in `ls glacier-sync-* | egrep -v "\-mtime\-" | egrep -v "\-thash\-" | cut -d "-" -f 3 | sort -d | uniq`; do 
 		targetLogFile=$(ls -c1 -rt glacier-sync-$i-* | tail -1)
-		if [[ $(tail -1 $targetLogFile | grep -v "OK DONE" | wc -l) != 0 ]]; then
+		if [[ $(file $targetLogFile | grep gzip | wc -l) == 1 ]]; then
+			actionStatus=$(zcat $targetLogFile | tail -1 | grep -v "OK DONE" | wc -l)
+		else
+			actionStatus=$(tail -1 $targetLogFile | grep -v "OK DONE" | wc -l)
+		fi
+		if [[ $actionStatus != 0 ]]; then
 			if [[ $sendEmails == 1 ]]; then
 				doSendEmail "WARNING: Failure in sync log for vault $i" "Last line of last sync file for vault $i is not OK DONE.\nVerify the file contents.\n"
 			fi
