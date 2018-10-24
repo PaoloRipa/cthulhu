@@ -721,7 +721,7 @@ if [[ $1 == 'check-sync' ]]; then
 			if [[ $sendEmails == 1 ]]; then
 				doSendEmail "WARNING: Failure in sync log for vault $i" "Last line of last sync file for vault $i is not OK DONE.\nVerify the file contents.\n"
 			fi
-			printMsg "Last line of last sync file for vault $i is not OK DONE. Verify the file contents."
+			printMsg "Last line of last sync file for vault $i is not OK DONE. Verify the file contents: $targetLogFile"
 		else
 			lastSuccessfulSyncStartTime=$(date -d @$(echo $targetLogFile | cut -d "-" -f 4 | cut -d "." -f 1))
 			printMsg "Check-sync action completed on vault $i. Last successful sync started on: $lastSuccessfulSyncStartTime"
