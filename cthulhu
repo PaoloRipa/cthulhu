@@ -30,6 +30,7 @@ emailTo=root                                  # Should be overridden in the conf
 checkOnSyncEnd=0                              # Set to 1 to force an exit check upon completion of sync action
 maxRestoreFiles=1000                          # Set the max number of files to be restored by a restore-prepare action
 restoreDelay=5                                # How many hours after a restore-prepare action, files will be ready to download
+compressLogFiles=1							  # Compress log files at the end of sync, sync-thash and sync-mtime actions
 
 # Ensuring mtglacier is in the PATH
 myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
@@ -437,6 +438,8 @@ function writeConfigFile() {
 	echo "# How many hours after a restore-prepare action, files will be ready to download" >> $myConfigFile
 	echo "# It is recommended not to change this value, as it's defined based on AWS Glacier standards" >> $myConfigFile
 	echo "# restoreDelay=5" >> $myConfigFile
+	echo "# Set to 0 to disable log file compression at the end of each action." >> $myConfigFile
+	echo "# compressLogFiles=0" >> $myConfigFile
 }
 
 # Function to check if conflicting actions are being executed
@@ -537,6 +540,10 @@ if [[ $1 == 'sync' ]]; then
 				doSendEmail "ERROR: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) did not complete with OK DONE.\nPlease, check $logFile for details.\n"
 			fi
 		fi
+	fi
+
+	if [[ $compressLogFiles == 1 ]]; then
+		gzip $logFile
 	fi
 	rm -rf $myLockFile
 	exit 0
