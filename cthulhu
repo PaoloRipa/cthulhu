@@ -30,7 +30,7 @@ emailTo=root                                  # Should be overridden in the conf
 checkOnSyncEnd=0                              # Set to 1 to force an exit check upon completion of sync action
 maxRestoreFiles=1000                          # Set the max number of files to be restored by a restore-prepare action
 restoreDelay=5                                # How many hours after a restore-prepare action, files will be ready to download
-compressLogFiles=1							  # Compress log files at the end of sync, sync-thash and sync-mtime actions
+compressLogFiles=1                            # Compress log files at the end of sync, sync-thash and sync-mtime actions
 
 # Ensuring mtglacier is in the PATH
 myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
@@ -587,6 +587,9 @@ if [[ $1 == 'sync-mtime' ]]; then
 			doSendEmail "NOTICE: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) has been completed on $(date).\n"
 		fi
 	fi
+	if [[ $compressLogFiles == 1 ]]; then
+		gzip $logFile
+	fi
 	rm -rf $myLockFile
 	exit 0
 fi
@@ -628,6 +631,9 @@ if [[ $1 == 'sync-thash' ]]; then
 		if [[ $errorEmailSent == 0 ]]; then
 			doSendEmail "NOTICE: Action $1 on vault $3" "Action $1 on vault $3 on host $(hostname) has been completed on $(date).\n"
 		fi
+	fi
+	if [[ $compressLogFiles == 1 ]]; then
+		gzip $logFile
 	fi
 	rm -rf $myLockFile
 	exit 0
