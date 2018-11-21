@@ -134,6 +134,6 @@ Set the following variable to achieve interactive usage (e.g. for shell calls on
 
 ### Roadmap
 
-[Version 2.0](https://github.com/PaoloRipa/cthulhu/milestone/1)
+[Version 2.2](https://github.com/PaoloRipa/cthulhu/milestone/6) 
 
 [Unscoped](https://github.com/PaoloRipa/cthulhu/milestone/2)
