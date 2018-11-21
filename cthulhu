@@ -786,6 +786,7 @@ if [[ $1 == 'install' ]]; then
 		echo "protocol=http" >> $configFile
 		echo "Installing log management cron job"
 		(crontab -l 2>/dev/null; echo -e "# AWS Glacier logs cleanup\n0 15 * * * find $logDir -name \"glacier-*.log\" -ctime +1 -type f  -exec rm -rf {} \\;") | crontab -
+		(crontab -l 2>/dev/null; echo -e "# AWS Glacier logs cleanup\n0 15 * * * find $logDir -name \"glacier-*.log.gz\" -ctime +1 -type f  -exec rm -rf {} \\;") | crontab -
 	fi
 	printMsg "Creating BaSH autocompletion file"
 	cthulhuAutocompletionFile=$HOME/.cthulhu.autocomplete.sh
