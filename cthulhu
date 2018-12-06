@@ -350,7 +350,7 @@ function printMsg() {
 
 function parseCheckLocalHash() {
 	grepString="^TOTALS|^[0-9]"
-	echo "Backup stats for directory: $3"
+	echo "Backup stats for directory: $3" > $2
 	cat $1 | egrep "$grepString" | grep -v ^$ >> $2 
 }
 
