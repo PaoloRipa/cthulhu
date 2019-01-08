@@ -22,9 +22,7 @@ logActionsToFile=1                            # Set to 1 to record results of ac
 quietMode=1                                   # Set to 1 not to print anything to STDOUT
 deleteRemoved=0                               # Set to 1 to instruct sync action to delete removed items
 logDir=$HOME/logs                             # Location of the log directory
-mainLog=${logDir}/cthulhu.log                 # Main log file
-writeToMainLog=1                              # Write actions and timestamps to a log
-useSystemLog=1                                # Set to 1 to log actions and timestamps via syslog instead of the main log file
+writeToMainLog=1                              # Write actions and timestamps to the system logger
 sendEmails=0                                  # Set to 1 to trigger email notifications
 emailTo=root                                  # Should be overridden in the config file
 checkOnSyncEnd=0                              # Set to 1 to force an exit check upon completion of sync action
@@ -340,12 +338,7 @@ function printMsg() {
 	
 	# Do I need to write to a log?
 	if [[ $writeToMainLog == 1 ]]; then
-		# Do I need to use logger?
-		if [[ $useSystemLog == 1 ]]; then
-			logger -p user.notice -t cthulhu $myUuid - $1
-		else	
-			echo "[$timestamp] - [cthulhu] - $myUuid - $1" >> $mainLog
-		fi
+		logger -p user.notice -t cthulhu $myUuid - $1
 	fi
 }
 
@@ -419,12 +412,8 @@ function writeConfigFile() {
 	echo "# deleteRemoved=0" >> $myConfigFile
 	echo "# Location of the log directory" >> $myConfigFile
 	echo "# logDir=$HOME/logs" >> $myConfigFile
-	echo "# Main log file" >> $myConfigFile
-	echo "# mainLog=${logDir}/cthulhu.log" >> $myConfigFile
-	echo "# Set to 1 to write actions and timestamps to the main log file" >> $myConfigFile
+	echo "# Set to 1 to write actions and timestamps to the system logger" >> $myConfigFile
 	echo "# writeToMainLog=1" >> $myConfigFile
-	echo "# Set to 1 to log events via syslog" >> $myConfigFile
-	echo "# useSystemLog=0" >> $myConfigFile
 	echo "# Set to 1 to trigger email notifications" >> $myConfigFile
 	echo "# sendEmails=0" >> $myConfigFile
 	echo "# Email address that should get the notifications" >> $myConfigFile

@@ -5,5 +5,6 @@
 	Issue #57 Add support for compressed log files into log management
 	Issue #59 check_sync action to support compressed log files
 	Issue #61 parseCheckLocalHash function not logging header to stats file
+	Issue #63 Remove support for main local file
 	Issue #68 Add option to persist log file for check-status action
             
