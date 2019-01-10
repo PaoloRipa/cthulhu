@@ -1,4 +1,4 @@
-#!/bin/bash
+!/bin/bash
 #
 ######################################################
 # Ph'nglui mglw'nafh Cthulhu R'lyeh wgah'nagl fhtagn #
@@ -12,7 +12,7 @@
 #######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="2.1"
+cthulhuVersion="2.1-1"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -349,7 +349,7 @@ function printMsg() {
 
 function parseCheckLocalHash() {
 	grepString="^TOTALS|^[0-9]"
-	echo "Backup stats for directory: $3"
+	echo "Backup stats for directory: $3" >> $2 
 	cat $1 | egrep "$grepString" | grep -v ^$ >> $2 
 }
 
