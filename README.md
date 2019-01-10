@@ -8,6 +8,7 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 ## Changelog
 
 Version 2.1-1 - Thu Jan 10 21:43:25 CET 2019
+
             Issue #62 [Backport] - parseCheckLocalHash function not logging header to stats file
 
 [Version 2.1](https://github.com/PaoloRipa/cthulhu/milestone/4) - Mon Oct 15 22:34:52 CEST 2018
