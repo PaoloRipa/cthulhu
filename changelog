@@ -1,5 +1,6 @@
 [Version 2.2](https://github.com/PaoloRipa/cthulhu/milestone/6) - UNDER DEVELOPMENT
 
+	Issue #39 Prevent action to run when conflicting actions are being executed
 	Issue #55 check-sync action to print log file name to check
 	Issue #56 Add support to compress log files
 	Issue #57 Add support for compressed log files into log management
