@@ -436,8 +436,6 @@ function writeConfigFile() {
 
 # Function to check if conflicting actions are being executed
 # Must be called with two parameter: action and vault
-# Function is currently a dummy as we are going back to the drawing board for this.
-# Refer to https://github.com/PaoloRipa/cthulhu/issues/39 for details
 function lookForConflicts() {
 	myLockFile=/var/lock/cthulhu.lock
 	if [[ -f $myLockFile ]]; then
