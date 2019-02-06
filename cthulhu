@@ -33,6 +33,9 @@ persistCheckStatusLogFile=0                   # Persist the log file generated b
 logRetentionDays=1                            # Retention time, in days, of log files managed by manage-log action
 persistLogRetentionDays=7                     # Retention time, in days, of persisted log files managed by manage-log action
 
+# CLI triggered options
+shortListVault=0
+
 # Ensuring mtglacier is in the PATH
 myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
 PATH=$PATH:$myPathDir
@@ -276,6 +279,8 @@ function doHelpTestEmail() {
 function doHelpListVault() {
 	forceInteractiveMode
 	printMsg "Usage: cthulhu list-vaults"
+	printMsg "Flags:"
+	printMsg "-s				Compact output mode"
 	printMsg "Description: Shows a list of vaults in the AWS Glacier account."
 }
 
@@ -471,12 +476,13 @@ function lookForConflicts() {
 ########
 
 # Reading CLI flags
-while getopts "ahimv" opt; do
+while getopts "ahim;;" opt; do
   case $opt in
    a ) skipMainInstall=1 ;;
    h ) doHelp && exit 0 ;;
    i ) forceInteractiveMode ;;
    m ) sendEmailOnCompletion=1 ;;
+   s ) shortListVault=1 ;;
    v ) forceInteractiveMode && printMsg "cthulhu version: $cthulhuVersion" && exit 0 ;;
    * ) ;;
   esac
@@ -647,6 +653,10 @@ fi
 if [[ $1 == 'list-vaults' ]]; then
 	# This cannot be run in batch mode, so we always print only to STDOUT
 	forceInteractiveMode
+	if [[ condition ]]; then
+		$myMtGlacier $1 --config $configFile --format for-humans | grep Vault | cut -d " " -f 1,2
+		exit 0
+	fi
 	$myMtGlacier $1 --config $configFile --format for-humans
 	exit 0
 fi
