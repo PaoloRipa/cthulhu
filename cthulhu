@@ -476,7 +476,7 @@ function lookForConflicts() {
 ########
 
 # Reading CLI flags
-while getopts "ahim;;" opt; do
+while getopts "ahimsv" opt; do
   case $opt in
    a ) skipMainInstall=1 ;;
    h ) doHelp && exit 0 ;;
@@ -653,7 +653,7 @@ fi
 if [[ $1 == 'list-vaults' ]]; then
 	# This cannot be run in batch mode, so we always print only to STDOUT
 	forceInteractiveMode
-	if [[ condition ]]; then
+	if [[ $shortListVaults == 1 ]]; then
 		$myMtGlacier $1 --config $configFile --format for-humans | grep Vault | cut -d " " -f 1,2
 		exit 0
 	fi
