@@ -516,7 +516,7 @@ fi
 
 # Check if logmgmt is scheduled, if not schedule it
 if [[ $(crontab -l | grep "cthulhu manage-log" | wc -l) == 0 ]]; then
-	# Add logmgmt cron job
+	printMsg "manage-log action not present in crontab. Scheduling it."
 	(crontab -l 2>/dev/null; echo -e "# cthulhu log cleanup\n0 15 * * * $(which cthulhu) manage-log > /dev/null") | crontab -
 fi
 
@@ -1211,7 +1211,7 @@ if [[ $1 == 'manage-log' ]]; then
 	printMsg "Purging log directory $logDir."
 	find $logDir -name "glacier-*.log" -ctime +$logRetentionDays -type f  -exec rm -rf {} \;
 	printMsg "Purging persisted log files under $logDir."
-	find $logDir -name "glacier-*.persist.gz" -ctime +$persistLogRetentionDays -type f -exect rm -rf {} \;
+	find $logDir -name "glacier-*.persist.gz" -ctime +$persistLogRetentionDays -type f -exec rm -rf {} \;
 	exit 0
 fi
 

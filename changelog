@@ -8,6 +8,7 @@
 	Issue #60 check-sync action is only checking that last line contains OK DONE
 	Issue #61 parseCheckLocalHash function not logging header to stats file
 	Issue #63 Remove support for main local file
+	Issue #65 Add function to ensure log management is scheduled
 	Issue #66 Add flag to print only vault names in list-vaults action
 	Issue #68 Add option to persist log file for check-status action
             
