@@ -514,6 +514,12 @@ if [[ ! -d $logDir ]]; then
 	exit 10
 fi
 
+# Check if logmgmt is scheduled, if not schedule it
+if [[ $(crontab -l | grep "cthulhu manage-log" | wc -l) == 0 ]]; then
+	# Add logmgmt cron job
+	(crontab -l 2>/dev/null; echo -e "# cthulhu log cleanup\n0 15 * * * $(which cthulhu) manage-log > /dev/null") | crontab -
+fi
+
 # Sync action, to execute backup fo source dir to target vault
 if [[ $1 == 'sync' ]]; then
 	# Must be invoked with 4 args: action, directory, vault, journal
