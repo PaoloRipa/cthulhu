@@ -4,7 +4,8 @@
 	Issue #55 check-sync action to print log file name to check
 	Issue #56 Add support to compress log files
 	Issue #57 Add support for compressed log files into log management
-	Issue #59 check_sync action to support compressed log files
+	Issue #58 Expand log management
+	Issue #59 check-sync action to support compressed log files
 	Issue #60 check-sync action is only checking that last line contains OK DONE
 	Issue #61 parseCheckLocalHash function not logging header to stats file
 	Issue #63 Remove support for main local file
