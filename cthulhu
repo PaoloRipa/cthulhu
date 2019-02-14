@@ -1209,10 +1209,10 @@ if [[ $1 == 'manage-log' ]]; then
 	# Stub for log management actions. For now only the crontab actions have been ported here.
 	# More to come.
 	printMsg "Purging log directory $logDir."
-	find $logDir -name "glacier-*.log" -ctime +$logRetentionDays -type f  -exec rm -rf {} \;
-	find $logDir -name "glacier-*.log.gz" -ctime +$logRetentionDays -type f  -exec rm -rf {} \;
+	find $logDir/ -name "glacier-*.log" -ctime +$logRetentionDays -type f  -exec rm -rf {} \;
+	find $logDir/ -name "glacier-*.log.gz" -ctime +$logRetentionDays -type f  -exec rm -rf {} \;
 	printMsg "Purging persisted log files under $logDir."
-	find $logDir -name "glacier-*.persist.gz" -ctime +$persistLogRetentionDays -type f -exec rm -rf {} \;
+	find $logDir/ -name "glacier-*.persist.gz" -ctime +$persistLogRetentionDays -type f -exec rm -rf {} \;
 	exit 0
 fi
 
