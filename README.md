@@ -8,6 +8,7 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 ## Changelog
 
 [Version 2.2](https://github.com/PaoloRipa/cthulhu/milestone/6) - Feb 18 22:44:20 CET 2019
+	
 	Issue #39 Prevent action to run when conflicting actions are being executed
 	Issue #55 check-sync action to print log file name to check
 	Issue #56 Add support to compress log files
@@ -23,10 +24,12 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 	Issue #67 Action manage-log does not support compressed files
             
 Version 2.1-1 - Thu Jan 10 21:43:25 CET 2019
-            Issue #62 [Backport] - parseCheckLocalHash function not logging header to stats file
+        
+	Issue #62 [Backport] - parseCheckLocalHash function not logging header to stats file
 
 [Version 2.1](https://github.com/PaoloRipa/cthulhu/milestone/4) - Mon Oct 15 22:34:52 CEST 2018
-            Issue #33 Add show-default-config action
+        
+	Issue #33 Add show-default-config action
             Issue #34 Add relevant CLI flags to help-action
             Issue #35 Add show-changelog function
             Issue #36 show-schedule action shows non-cthulhu cron jobs 
