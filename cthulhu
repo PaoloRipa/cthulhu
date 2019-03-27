@@ -1228,6 +1228,7 @@ if [[ $1 == 'purge-lock' ]]; then
 	printMsg "Deleting lock file: $myLockFile"
 	rm -rf $myLockFile
 	printMsg "Done."
+	exit 0
 fi
 
 # Internal action, used for autocompletion only
