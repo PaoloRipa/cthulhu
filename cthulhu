@@ -12,7 +12,7 @@
 #######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="2.3"
+cthulhuVersion="2.3-DEV"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -331,7 +331,7 @@ function doHelpAction() {
 		list-codes ) doHelpListCodes ;;
 		list-vaults ) doHelpListVault ;;
 		manage-log ) doHelpManageLog ;;
-		purge-lock ) doHelpPurgeLock ::
+		purge-lock ) doHelpPurgeLock ;;
 		purge-vault ) doHelpPurge ;;
 		restore-download ) doHelpRestoreDownload ;;	
 		restore-prepare ) doHelpRestorePrepare ;;
