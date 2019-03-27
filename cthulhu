@@ -78,6 +78,7 @@ function doHelp() {
 	printMsg "  list-codes           Displays exit code reference information"
 	printMsg "  list-vaults          Lists the existing vaults"
 	printMsg "  manage-log           Execute log management actions"
+	printMsg "  purge-lock           Forcefully delete lock file $myLockFile"
 	printMsg "  purge-vault          Remove all items from the target vault"
 	printMsg "  restore-download     Actually retrieve the data. This can be executed after at least $restoreDelay hours from the preparation"
 	printMsg "  restore-prepare      Instructs Glacier vault to prepare data for restoration"
@@ -115,7 +116,7 @@ function doHelp() {
 
 function shortHelp() {
 	forceInteractiveMode
-	printMsg "add-schedule check-status check-sync create-vault del-schedule delete-vault gen-conf help-action install journal-create journal-download list-codes list-vaults manage-log purge-vault restore-download restore-prepare show-changelog show-conf show-default-config show-schedule sync sync-mtime sync-thash test-mail"
+	printMsg "add-schedule check-status check-sync create-vault del-schedule delete-vault gen-conf help-action install journal-create journal-download list-codes list-vaults manage-log purge-lock purge-vault restore-download restore-prepare show-changelog show-conf show-default-config show-schedule sync sync-mtime sync-thash test-mail"
 }
 
 function doHelpSync() {
@@ -308,6 +309,12 @@ function doHelpManageLog() {
 	printMsg "Description: Executes log management actions."
 }
 
+function doHelpPurgeLock() {
+	forceInteractiveMode
+	printMsg "Usage: cthulhu purge-lock"
+	printMsg "Description: Forcefully deletes the lock file $myLockFile"
+}
+
 function doHelpAction() {
 	forceInteractiveMode
 	case $1 in
@@ -324,6 +331,7 @@ function doHelpAction() {
 		list-codes ) doHelpListCodes ;;
 		list-vaults ) doHelpListVault ;;
 		manage-log ) doHelpManageLog ;;
+		purge-lock ) doHelpPurgeLock ::
 		purge-vault ) doHelpPurge ;;
 		restore-download ) doHelpRestoreDownload ;;	
 		restore-prepare ) doHelpRestorePrepare ;;
@@ -1214,6 +1222,12 @@ if [[ $1 == 'manage-log' ]]; then
 	printMsg "Purging persisted log files under $logDir."
 	find $logDir/ -name "glacier-*.persist.gz" -ctime +$persistLogRetentionDays -type f -exec rm -rf {} \;
 	exit 0
+fi
+
+if [[ $1 == 'purge-lock' ]]; then
+	printMsg "Deleting lock file: $myLockFile"
+	rm -rf $myLockFile
+	printMsg "Done."
 fi
 
 # Internal action, used for autocompletion only
