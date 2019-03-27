@@ -1225,6 +1225,7 @@ if [[ $1 == 'manage-log' ]]; then
 fi
 
 if [[ $1 == 'purge-lock' ]]; then
+	forceInteractiveMode
 	printMsg "Deleting lock file: $myLockFile"
 	rm -rf $myLockFile
 	printMsg "Done."
