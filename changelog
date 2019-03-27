@@ -1,3 +1,4 @@
 [Version 2.3](https://github.com/PaoloRipa/cthulhu/milestone/7) - UNDER DEVELOPMENT
 	
 	Issue #68 - Create action to forcefully purge the lock file 
+	Issue #69 - Variable _myLockFile_ is defined within _lookForConflicts_ action and not global

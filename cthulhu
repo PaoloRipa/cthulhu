@@ -36,6 +36,9 @@ persistLogRetentionDays=7                     # Retention time, in days, of pers
 # CLI triggered options
 shortListVault=0
 
+# Location of cthulhu lock file
+myLockFile=/var/lock/cthulhu.lock
+
 # Ensuring mtglacier is in the PATH
 myPathDir=$(which mtglacier | sed -e "s/mtglacier//")
 PATH=$PATH:$myPathDir
@@ -464,7 +467,6 @@ function writeConfigFile() {
 # Function to check if conflicting actions are being executed
 # Must be called with two parameter: action and vault
 function lookForConflicts() {
-	myLockFile=/var/lock/cthulhu.lock
 	if [[ -f $myLockFile ]]; then
 		if [[ $(ps aux | grep cthulhu | grep -v grep | wc -l) -ge 2 ]]; then
 			if [[ $(grep $1 $myLockFile | wc -l) != 0 ]]; then
