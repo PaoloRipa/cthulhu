@@ -12,7 +12,7 @@
 #######################################################################
 
 # VERSION - DO NOT CHANGE
-cthulhuVersion="2.2"
+cthulhuVersion="2.2-1"
 
 # Setting defaults
 configFile=$HOME/glacier.d/mtAwsGlacier.conf  # AWS Glacier config file
@@ -692,6 +692,18 @@ if [[ $1 == 'check-status' ]]; then
 	checkDirectory $2 $1
 	logFile=${logDir}/glacier-$1-`date +%s`.log
 	$myMtGlacier check-local-hash --config $configFile --dir $2 --journal $3 >$logFile 2>&1
+	# Here we need to ensure we had a clean run
+	if [[ $(egrep "^TOTALS" $logFile | wc -l) == 0 ]]; then
+		if [[ $sendEmails == 1 ]]; then
+			checkEmailBody="ERROR: Action $1 on directory $2 did not complete successfully.\nPlease troubleshoot.\n"
+		else
+			printMsg "ERROR: Action $1 on directory $2 did not complete successfully."
+			if [[ $persistCheckStatusLogFile == 1 ]]; then
+				printMsg "Detailed informations available in $logFile.persist.gz"
+			fi
+		fi
+		exit 17
+	fi
 	resultFile=${logDir}/glacier-stats-`date +%s`.log
 	parseCheckLocalHash $logFile $resultFile $2
 	printMsg "Action completed. Stats logged to $resultFile"
