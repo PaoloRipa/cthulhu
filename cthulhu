@@ -703,7 +703,7 @@ if [[ $1 == 'check-status' ]]; then
 	logFile=${logDir}/glacier-$1-`date +%s`.log
 	$myMtGlacier check-local-hash --config $configFile --dir $2 --journal $3 >$logFile 2>&1
 	# Here we need to ensure we had a clean run
-	if [[ $? != 0 ]]; then
+	if [[ $(egrep "$TOTALS" $logFile) == 0 ]]; then
 		if [[ $sendEmails == 1 ]]; then
 			checkEmailBody="ERROR: Action $1 on directory $2 did not complete successfully.\nPlease troubleshoot.\n"
 		else
