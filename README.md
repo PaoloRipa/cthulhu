@@ -7,6 +7,11 @@ Reference to mtglacier --> https://github.com/vsespb/mt-aws-glacier
 
 ## Changelog
 
+
+Version 2.2-1
+
+	Issue #71 [Backport] - check-status email text corrupted if action aborted
+
 [Version 2.2](https://github.com/PaoloRipa/cthulhu/milestone/6) - Feb 18 22:44:20 CET 2019
 	
 	Issue #39 Prevent action to run when conflicting actions are being executed
