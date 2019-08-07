@@ -379,6 +379,42 @@ function parseCheckLocalHash() {
 #   1. Target directory to be checked
 #   2. Action that called the function, for reporting purposes
 function checkDirectory() {
+	if [[ $(grep $1 /etc/fstab | grep -v ^# | egrep "cifs|nfs" | wc -l) == 1 ]]; then
+		# Directory is a mount point of a remote filesystem, is it mounted?
+		if [[ $(mount | grep $1 | wc -l) != 1 ]]; then
+			if [[ $2 ]]; then
+				printMsg "ERROR: Target directory $1 not mounted. Aborting action $2."
+			else
+				printMsg "ERROR: Target directory $1 not mounted. Aborting action."
+			fi
+			if [[ $sendEmails == 1 ]]; then
+			if [[ $2 ]]; then
+				doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action $2.\n"
+			else
+				doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action.\n"
+			fi
+		fi
+			exit 17
+		fi
+	fi
+	if [[ $(df -P -T $1 | tail -n +2 | awk '{print $2}' | egrep "cifs|nfs" | wc -l) == 1 ]]; then
+		# Directory is in a remote filesystem, is it accessible?
+		ls $1 >/dev/null 2>&1
+		if [[ $? != 0 ]]; then
+			if [[ $2 ]]; then
+				printMsg "ERROR: Target directory $1 is mounted, but not accessible. Aborting action $2."
+			else
+				printMsg "ERROR: Target directory $1 is mounted, but not accessible. Aborting action."
+			fi
+			if [[ $sendEmails == 1 ]]; then
+			if [[ $2 ]]; then
+				doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action $2.\n"
+			else
+				doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action.\n"
+			fi
+			exit 18
+		fi
+	fi
 	if [[ ! -d $1 ]]; then
 		if [[ $2 ]]; then
 			printMsg "ERROR: Target directory $1 does not exist. Aborting action $2."
@@ -387,7 +423,7 @@ function checkDirectory() {
 		fi
 		if [[ $sendEmails == 1 ]]; then
 			if [[ $2 ]]; then
-				doSendEmail "ERROR: Non existing directory" "ERROR: Target directory $1 does not exist on host $(hostname).\nAborting action $2.\n"
+				doSendEmail "ERROR: Non existing directory" "Target directory $1 does not exist on host $(hostname).\nAborting action $2.\n"
 			else
 				doSendEmail "ERROR: Non existing directory" "Target directory $1 does not exist on host $(hostname).\nAborting action.\n"
 			fi
