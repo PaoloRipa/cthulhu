@@ -394,7 +394,7 @@ function checkDirectory() {
 				doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action.\n"
 			fi
 		fi
-			exit 17
+			exit 18
 		fi
 	fi
 	if [[ $(df -P -T $1 | tail -n +2 | awk '{print $2}' | egrep "cifs|nfs" | wc -l) == 1 ]]; then
@@ -412,7 +412,7 @@ function checkDirectory() {
 			else
 				doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action.\n"
 			fi
-			exit 18
+			exit 19
 		fi
 	fi
 	if [[ ! -d $1 ]]; then
@@ -1089,6 +1089,8 @@ if [[ $1 == 'list-codes' ]]; then
 	printMsg "  15 - Missing journal-download action parameter(s). Execution aborted."
 	printMsg "  16 - Conflicting running actions detected. Execution aborted."
 	printMsg "  17 - Error encountered during execution of check-status action. Execution aborted."
+	printMsg "  18 - Target directory is a remote filesystem mount point, but it's not mounted."
+	printMsg "  19 - Target directory is in a mounted remote filesystem, but it's not accessible."
 	printMsg " 666 - Unexpected exit code. It should never be reported. If you encounter it, open a bug on cthulhu GitHub project."
 	exit 0
 fi
