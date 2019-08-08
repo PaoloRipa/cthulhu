@@ -388,12 +388,12 @@ function checkDirectory() {
 				printMsg "ERROR: Target directory $1 not mounted. Aborting action."
 			fi
 			if [[ $sendEmails == 1 ]]; then
-			if [[ $2 ]]; then
-				doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action $2.\n"
-			else
-				doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action.\n"
+				if [[ $2 ]]; then
+					doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action $2.\n"
+				else
+					doSendEmail "ERROR: Directory not mounted" "Target directory $1 not mounted on host $(hostname).\nAborting action.\n"
+				fi
 			fi
-		fi
 			exit 18
 		fi
 	fi
@@ -407,10 +407,11 @@ function checkDirectory() {
 				printMsg "ERROR: Target directory $1 is mounted, but not accessible. Aborting action."
 			fi
 			if [[ $sendEmails == 1 ]]; then
-			if [[ $2 ]]; then
-				doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action $2.\n"
-			else
-				doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action.\n"
+				if [[ $2 ]]; then
+					doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action $2.\n"
+				else
+					doSendEmail "ERROR: Directory not accessible" "Target directory $1 not accessible on host $(hostname).\nAborting action.\n"
+				fi
 			fi
 			exit 19
 		fi
