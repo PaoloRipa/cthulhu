@@ -3,3 +3,5 @@
 	Issue #68 - Create action to forcefully purge the lock file 
 	Issue #69 - Variable _myLockFile_ is defined within _lookForConflicts_ action and not global
 	Issue #70 - check-status email text corrupted if action aborted
+	Issue #74 - Add error code 18 to list-codes action
+	Issue #75 - Add error code 19 to list-codes action
